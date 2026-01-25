@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllEquipment, getAllServices, getAllSessions, getEquipmentCount } from '../services/database';
 import { getEquipmentTypeIcon } from '../services/csvParser';
-import ServiceTree from '../components/ServiceTree';
+import ServicePicker from '../components/ServicePicker';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -144,7 +144,7 @@ export default function Dashboard() {
                                     Sélectionnez les services à inclure dans l'inventaire:
                                 </p>
 
-                                <ServiceTree
+                                <ServicePicker
                                     services={stats.services}
                                     selectedServices={selectedServices}
                                     onSelectionChange={setSelectedServices}

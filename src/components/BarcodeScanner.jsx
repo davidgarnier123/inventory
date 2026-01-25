@@ -13,11 +13,11 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
 
     const initScanner = useCallback(async () => {
         try {
-            // Import Dynamsoft modules
-            const { BarcodeReader, EnumBarcodeFormat } = await import('dynamsoft-barcode-reader-bundle');
+            // Import Dynamsoft modules (v11 API)
+            const Dynamsoft = await import('dynamsoft-barcode-reader-bundle');
 
-            // Initialize with trial license (user can replace with their own)
-            await BarcodeReader.initLicense('DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk3MTAxOTIyNjQiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6InRlc3RAdGVzdCIsImNoZWNrU2F2ZWRUcmFja2luZyI6ZmFsc2UsInByb2R1Y3RzIjpbIkRCUiIsIkRMU1AiLCJEVlIiLCJEVlIiLCJEM1BEIl0sImV4cGlyeSI6MTY0OTcxMDE5MjI2NH0=');
+            // Initialize with license using v11 API
+            await Dynamsoft.LicenseManager.initLicense('DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk3MTAxOTIyNjQiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6InRlc3RAdGVzdCIsImNoZWNrU2F2ZWRUcmFja2luZyI6ZmFsc2UsInByb2R1Y3RzIjpbIkRCUiIsIkRMU1AiLCJEVlIiLCJEVlIiLCJEM1BEIl0sImV4cGlyeSI6MTY0OTcxMDE5MjI2NH0=');
 
             // Get available cameras
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -35,17 +35,16 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
                 setCurrentCamera(backCamera.deviceId);
             }
 
-            // Create scanner instance
-            const reader = await BarcodeReader.createInstance();
+            // Create CaptureVisionRouter instance (v11 API)
+            const router = await Dynamsoft.CaptureVisionRouter.createInstance();
 
-            // Configure for Code 128
-            const settings = await reader.getRuntimeSettings();
-            settings.barcodeFormatIds = EnumBarcodeFormat.BF_CODE_128;
-            settings.expectedBarcodesCount = 1;
-            settings.timeout = 500;
-            await reader.updateRuntimeSettings(settings);
+            // Configure for Code 128 only
+            const settings = await router.getSimplifiedSettings("ReadBarcodes_Default");
+            settings.barcodeSettings.barcodeFormatIds = Dynamsoft.EnumBarcodeFormat.BF_CODE_128;
+            settings.barcodeSettings.expectedBarcodesCount = 1;
+            await router.updateSettings("ReadBarcodes_Default", settings);
 
-            scannerRef.current = reader;
+            scannerRef.current = router;
             setIsReady(true);
 
         } catch (err) {
@@ -103,10 +102,12 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
         ctx.drawImage(video, 0, 0);
 
         try {
-            const results = await scannerRef.current.decode(canvas);
+            // Use capture() for v11 API
+            const result = await scannerRef.current.capture(canvas, "ReadBarcodes_Default");
+            const barcodeItems = result?.items?.filter(item => item.type === 2) || [];
 
-            if (results && results.length > 0) {
-                const code = results[0].barcodeText;
+            if (barcodeItems.length > 0) {
+                const code = barcodeItems[0].text;
 
                 // Debounce same code
                 if (code !== lastScanned) {
@@ -183,7 +184,7 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
         return () => {
             stopCamera();
             if (scannerRef.current) {
-                scannerRef.current.destroyContext();
+                scannerRef.current.dispose();
             }
         };
     }, []);
