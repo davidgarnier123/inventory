@@ -17,7 +17,7 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
             const { BarcodeReader, EnumBarcodeFormat } = await import('dynamsoft-barcode-reader-bundle');
 
             // Initialize with trial license (user can replace with their own)
-            await BarcodeReader.initLicense('DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9');
+            await BarcodeReader.initLicense('DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk3MTAxOTIyNjQiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6InRlc3RAdGVzdCIsImNoZWNrU2F2ZWRUcmFja2luZyI6ZmFsc2UsInByb2R1Y3RzIjpbIkRCUiIsIkRMU1AiLCJEVlIiLCJEVlIiLCJEM1BEIl0sImV4cGlyeSI6MTY0OTcxMDE5MjI2NH0=');
 
             // Get available cameras
             const devices = await navigator.mediaDevices.enumerateDevices();
