@@ -1,0 +1,196 @@
+.equipment-card {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.equipment-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+}
+
+.equipment-card.highlighted {
+    border-color: var(--primary);
+    background: var(--primary-glow);
+    animation: pulse-highlight 2s ease-in-out infinite;
+}
+
+@keyframes pulse-highlight {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+    }
+}
+
+.equipment-card.compact {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+}
+
+.equipment-card.status-found {
+    border-left: 4px solid var(--success);
+}
+
+.equipment-card.status-missing {
+    border-left: 4px solid var(--danger);
+}
+
+.equipment-card.status-error {
+    border-left: 4px solid var(--warning);
+}
+
+.equipment-card.status-pending {
+    border-left: 4px solid var(--text-muted);
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.compact .card-icon {
+    width: 36px;
+    height: 36px;
+}
+
+.type-icon {
+    font-size: 1.5rem;
+}
+
+.compact .type-icon {
+    font-size: 1.2rem;
+}
+
+.card-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.equipment-type {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.status-badge.status-found {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+}
+
+.status-badge.status-missing {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+}
+
+.status-badge.status-error {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning);
+}
+
+.status-badge.status-pending {
+    background: rgba(148, 163, 184, 0.2);
+    color: var(--text-muted);
+}
+
+.card-title {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.brand {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.model {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.card-serial {
+    display: flex;
+    gap: var(--space-xs);
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 0.85rem;
+}
+
+.serial-label {
+    color: var(--text-muted);
+}
+
+.serial-value {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.card-agent {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.agent-icon {
+    font-size: 0.9rem;
+}
+
+.card-linked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.8rem;
+    padding: var(--space-xs) var(--space-sm);
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-xs);
+}
+
+.linked-icon {
+    font-size: 0.85rem;
+}
+
+.linked-label {
+    color: var(--text-muted);
+}
+
+.linked-value {
+    color: var(--primary);
+    font-weight: 500;
+}
