@@ -134,7 +134,28 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
         onSelectionChange(newSelection);
     };
 
-    const currentNodes = getCurrentNodes();
+    // Search state
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Filter nodes based on search query or navigation stack
+    const currentNodes = useMemo(() => {
+        if (searchQuery) {
+            // Flatten search: find all services matching query
+            return services.filter(svc =>
+                svc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                svc.path.toLowerCase().includes(searchQuery.toLowerCase())
+            ).map(svc => nodeMap.get(svc.path));
+        }
+
+        if (navigationStack.length === 0) {
+            return rootNodes;
+        }
+        const currentPath = navigationStack[navigationStack.length - 1];
+        const currentNode = nodeMap.get(currentPath);
+        return currentNode?.children || [];
+    }, [searchQuery, navigationStack, rootNodes, nodeMap, services]);
+
+    const isSearching = searchQuery.length > 0;
 
     if (services.length === 0) {
         return (
@@ -146,25 +167,42 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
 
     return (
         <div className="service-picker">
-            {/* Breadcrumb Navigation */}
-            <div className="picker-breadcrumb">
-                <button
-                    className={`breadcrumb-item ${navigationStack.length === 0 ? 'active' : ''}`}
-                    onClick={() => navigateToLevel(-1)}
-                >
-                    🏠 Racine
-                </button>
-                {navigationStack.map((path, index) => (
-                    <button
-                        key={path}
-                        className={`breadcrumb-item ${index === navigationStack.length - 1 ? 'active' : ''}`}
-                        onClick={() => navigateToLevel(index)}
-                    >
-                        <span className="breadcrumb-separator">›</span>
-                        {serviceMap.get(path)?.name}
-                    </button>
-                ))}
+            {/* Search Bar */}
+            <div className="picker-search">
+                <input
+                    type="text"
+                    placeholder="Rechercher un service..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                />
+                {searchQuery && (
+                    <button className="search-clear" onClick={() => setSearchQuery('')}>✕</button>
+                )}
             </div>
+
+            {/* Breadcrumb Navigation - Hide when searching */}
+            {!isSearching && (
+                <div className="picker-breadcrumb">
+                    <button
+                        className={`breadcrumb-item ${navigationStack.length === 0 ? 'active' : ''}`}
+                        onClick={() => navigateToLevel(-1)}
+                    >
+                        Services
+                    </button>
+                    {navigationStack.map((path, index) => (
+                        <div key={path} className="breadcrumb-segment">
+                            <span className="breadcrumb-separator">/</span>
+                            <button
+                                className={`breadcrumb-item ${index === navigationStack.length - 1 ? 'active' : ''}`}
+                                onClick={() => navigateToLevel(index)}
+                            >
+                                {serviceMap.get(path)?.name || path}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Quick Actions */}
             <div className="picker-actions">
@@ -179,8 +217,8 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
                 </span>
             </div>
 
-            {/* Back Button (when navigated into a folder) */}
-            {navigationStack.length > 0 && (
+            {/* Back Button (when navigated into a folder) - Hide when searching */}
+            {!isSearching && navigationStack.length > 0 && (
                 <button className="picker-back-btn" onClick={navigateBack}>
                     <span className="back-icon">←</span>
                     <span className="back-text">Retour</span>
@@ -251,3 +289,4 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
         </div>
     );
 }
+
