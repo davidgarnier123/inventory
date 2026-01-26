@@ -414,3 +414,143 @@
         opacity: 1;
     }
 }
+
+/* Plan Preparation Styles */
+.plan-creation {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+.plan-name-input {
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.plan-name-input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.plan-service-picker {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.plan-summary {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.action-btn.primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+.action-btn.primary:hover:not(:disabled) {
+    background: #4f46e5;
+    box-shadow: 0 0 15px var(--primary-glow);
+}
+
+.action-btn.primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.saved-plans {
+    margin-top: var(--space-lg);
+    border-top: 1px solid var(--glass-border);
+    padding-top: var(--space-md);
+}
+
+.saved-plans h3 {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-md);
+}
+
+.plans-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.plan-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+}
+
+.plan-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.plan-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.plan-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.plan-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.plan-action-btn {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.plan-action-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--primary);
+}
+
+.plan-action-btn.danger:hover {
+    border-color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.import-plan-zone {
+    margin-top: var(--space-md);
+}
+
+.import-plan-btn {
+    display: block;
+    text-align: center;
+    padding: var(--space-sm);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.import-plan-btn:hover {
+    color: var(--primary);
+}

@@ -1,17 +1,18 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'inventory-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
     EQUIPMENT: 'equipment',
     SERVICES: 'services',
-    SESSIONS: 'sessions'
+    SESSIONS: 'sessions',
+    PLANS: 'plans'
 };
 
 async function getDB() {
     return openDB(DB_NAME, DB_VERSION, {
-        upgrade(db) {
+        upgrade(db, oldVersion) {
             // Equipment store
             if (!db.objectStoreNames.contains(STORES.EQUIPMENT)) {
                 const equipmentStore = db.createObjectStore(STORES.EQUIPMENT, { keyPath: 'serialNumber' });
@@ -32,9 +33,15 @@ async function getDB() {
                 sessionStore.createIndex('status', 'status');
                 sessionStore.createIndex('startDate', 'startDate');
             }
+
+            // Inventory plans store
+            if (!db.objectStoreNames.contains(STORES.PLANS)) {
+                db.createObjectStore(STORES.PLANS, { keyPath: 'id' });
+            }
         }
     });
 }
+
 
 // Equipment operations
 export async function getAllEquipment() {
@@ -129,6 +136,24 @@ export async function clearAllData() {
     await db.clear(STORES.EQUIPMENT);
     await db.clear(STORES.SERVICES);
     await db.clear(STORES.SESSIONS);
+    await db.clear(STORES.PLANS);
 }
+
+// Plan operations
+export async function getAllPlans() {
+    const db = await getDB();
+    return db.getAll(STORES.PLANS);
+}
+
+export async function savePlan(plan) {
+    const db = await getDB();
+    return db.put(STORES.PLANS, plan);
+}
+
+export async function deletePlan(id) {
+    const db = await getDB();
+    return db.delete(STORES.PLANS, id);
+}
+
 
 export { STORES };

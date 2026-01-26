@@ -17,14 +17,19 @@ export default function InventorySession() {
     const location = useLocation();
     const navigate = useNavigate();
     const selectedServicePaths = location.state?.selectedServices || [];
+    const planName = location.state?.planName || '';
+    const planId = location.state?.planId || null;
 
     const [session, setSession] = useState({
         id: `session-${Date.now()}`,
         startDate: new Date().toISOString(),
         services: selectedServicePaths,
+        planId: planId,
+        planName: planName,
         scannedItems: [],
         status: 'active'
     });
+
 
     const [equipment, setEquipment] = useState([]);
     const [filteredEquipment, setFilteredEquipment] = useState([]);
@@ -172,11 +177,12 @@ export default function InventorySession() {
                     ← Retour
                 </button>
                 <div className="session-info">
-                    <h1>Inventaire en cours</h1>
+                    <h1>{planName || 'Inventaire en cours'}</h1>
                     <span className="session-services">
-                        {selectedServicePaths.length} service(s)
+                        {planName ? `${selectedServicePaths.length} services` : `${selectedServicePaths.length} service(s) sélectionné(s)`}
                     </span>
                 </div>
+
                 <button className="finish-btn" onClick={finishInventory}>
                     Terminer
                 </button>

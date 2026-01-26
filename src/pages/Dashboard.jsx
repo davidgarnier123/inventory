@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllEquipment, getAllServices, getAllSessions, getEquipmentCount } from '../services/database';
+import { getAllEquipment, getAllServices, getAllSessions, getAllPlans } from '../services/database';
 import { getEquipmentTypeIcon } from '../services/csvParser';
-import ServicePicker from '../components/ServicePicker';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -11,11 +10,10 @@ export default function Dashboard() {
         totalEquipment: 0,
         byType: {},
         services: [],
-        recentSessions: []
+        recentSessions: [],
+        plans: []
     });
-    const [selectedServices, setSelectedServices] = useState(new Set());
     const [equipmentCounts, setEquipmentCounts] = useState({});
-    const [showServiceSelector, setShowServiceSelector] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -25,10 +23,11 @@ export default function Dashboard() {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [equipment, services, sessions] = await Promise.all([
+            const [equipment, services, sessions, plans] = await Promise.all([
                 getAllEquipment(),
                 getAllServices(),
-                getAllSessions()
+                getAllSessions(),
+                getAllPlans()
             ]);
 
             // Calculate stats by type
@@ -55,7 +54,8 @@ export default function Dashboard() {
                 totalEquipment: equipment.length,
                 byType,
                 services,
-                recentSessions: sortedSessions
+                recentSessions: sortedSessions,
+                plans
             });
         } catch (err) {
             console.error('Error loading data:', err);
@@ -63,19 +63,16 @@ export default function Dashboard() {
         setIsLoading(false);
     };
 
-    const startInventory = () => {
-        if (selectedServices.size === 0) {
-            setShowServiceSelector(true);
-            return;
-        }
-
-        // Navigate to inventory session with selected services
+    const startInventoryFromPlan = (plan) => {
         navigate('/inventory', {
             state: {
-                selectedServices: Array.from(selectedServices)
+                selectedServices: plan.services,
+                planId: plan.id,
+                planName: plan.name
             }
         });
     };
+
 
     const getSelectedEquipmentCount = () => {
         let count = 0;
@@ -136,54 +133,53 @@ export default function Dashboard() {
                     </section>
 
                     <section className="inventory-section">
-                        <h2>Nouvel inventaire</h2>
+                        <h2>🚀 Démarrer un inventaire</h2>
 
-                        {showServiceSelector ? (
-                            <div className="service-selection">
-                                <p className="selection-hint">
-                                    Sélectionnez les services à inclure dans l'inventaire:
-                                </p>
-
-                                <ServicePicker
-                                    services={stats.services}
-                                    selectedServices={selectedServices}
-                                    onSelectionChange={setSelectedServices}
-                                    equipmentCounts={equipmentCounts}
-                                />
-
-                                <div className="selection-summary">
-                                    <span className="count">
-                                        {getSelectedEquipmentCount()} équipement(s) sélectionné(s)
-                                    </span>
-                                </div>
-
-                                <div className="selection-actions">
-                                    <button
-                                        className="cancel-btn"
-                                        onClick={() => {
-                                            setShowServiceSelector(false);
-                                            setSelectedServices(new Set());
-                                        }}
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button
-                                        className="start-btn"
-                                        onClick={startInventory}
-                                        disabled={selectedServices.size === 0}
-                                    >
-                                        🚀 Démarrer l'inventaire
-                                    </button>
-                                </div>
+                        {stats.plans.length === 0 ? (
+                            <div className="no-plans">
+                                <p>Aucun plan d'inventaire prêt.</p>
+                                <button
+                                    className="action-btn secondary"
+                                    onClick={() => navigate('/settings')}
+                                >
+                                    ⚙️ Créer une préparation dans les paramètres
+                                </button>
                             </div>
                         ) : (
-                            <button className="start-inventory-btn" onClick={() => setShowServiceSelector(true)}>
-                                <span className="btn-icon">📋</span>
-                                <span className="btn-text">Démarrer un nouvel inventaire</span>
-                                <span className="btn-arrow">→</span>
-                            </button>
+                            <div className="plans-grid">
+                                {stats.plans.map(plan => {
+                                    // Calculate total equipment in this plan
+                                    let planEquipmentCount = 0;
+                                    plan.services.forEach(path => {
+                                        const hasSelectedChild = plan.services.some(
+                                            p => p !== path && p.startsWith(path + ' /')
+                                        );
+                                        if (!hasSelectedChild) {
+                                            planEquipmentCount += equipmentCounts[path] || 0;
+                                        }
+                                    });
+
+                                    return (
+                                        <div key={plan.id} className="plan-card">
+                                            <div className="plan-card-info">
+                                                <span className="plan-card-name">{plan.name}</span>
+                                                <span className="plan-card-meta">
+                                                    {planEquipmentCount} équipements • {plan.services.length} services
+                                                </span>
+                                            </div>
+                                            <button
+                                                className="plan-start-btn"
+                                                onClick={() => startInventoryFromPlan(plan)}
+                                            >
+                                                Démarrer
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
                     </section>
+
 
                     {stats.recentSessions.length > 0 && (
                         <section className="history-section">
