@@ -64,10 +64,15 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
 
                 const license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA1MDYwNTQxLU1UQTFNRFl3TlRReExYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwib3JnYW5pemF0aW9uSUQiOiIxMDUwNjA1NDEiLCJzdGFuZGJ5U2VydmVyVVJMIjoiaHR0cHM6Ly9zZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwiY2hlY2tDb2RlIjo1OTU1MDkyODN9";
 
+                // On applique la licence à la fois sur le Scanner et le moteur (Reader)
                 BarcodeScannerClass.license = license;
+                if (Dynamsoft.DBR && Dynamsoft.DBR.BarcodeReader) {
+                    Dynamsoft.DBR.BarcodeReader.license = license;
+                }
 
                 const config = {
                     container: containerRef.current,
+                    license: license,
                     scanMode: Dynamsoft.EnumScanMode.SM_MULTI_UNIQUE,
                     barcodeFormats: [window.Dynamsoft.DBR?.EnumBarcodeFormat?.BF_CODE_128 || 0x400],
                     showPoweredByDynamsoft: false,
