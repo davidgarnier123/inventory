@@ -8,45 +8,48 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
 
     const initScanner = useCallback(async () => {
         try {
-            // Load locally installed package
-            // Note: In Vite, this will be bundled or code-split automatically
-            const { BarcodeScanner, EnumScanMode } = await import('dynamsoft-barcode-reader-bundle');
+            // Load the library (side-effect import to populate window.Dynamsoft)
+            await import('dynamsoft-barcode-reader-bundle');
 
-            // Configure license
-            BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk3MTAxOTIyNjQiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6InRlc3RAdGVzdCIsImNoZWNrU2F2ZWRUcmFja2luZyI6ZmFsc2UsInByb2R1Y3RzIjpbIkRCUiIsIkRMU1AiLCJEVlIiLCJEVlIiLCJEM1BEIl0sImV4cGlyeSI6MTY0OTcxMDE5MjI2NH0=";
-
-            // Basic settings to try to avoid other network fetches for WASM if possible
-            // (The bundle usually defaults to CDN for WASM but the script itself will now be local)
-            BarcodeScanner.engineResourcePath = "https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@11.2.4500/dist/";
-
-            // Initialize the scanner instance
-            const scanner = await BarcodeScanner.createInstance();
-
-            // Configure settings
-            const settings = await scanner.getRuntimeSettings();
-            settings.barcodeFormatIds = 67108864; // Code 128 (approximate ID, or use Enum if avail)
-            // Or better, let's just use the simpler API if possible, but createInstance is lower level.
-            // The previous code used `new window.Dynamsoft.BarcodeScanner({...})` which suggests the EasyScanner/CameraEnhancer wrapper pattern?
-            // The 'bundle' package usually includes the "Camera Enhancer" logic built-in or exposes `createInstance`.
-
-            // Let's stick to the previous configuration pattern but with the module
-            // Actually, `new BarcodeScanner` might not be the constructor if it's the EasyScanner.
-            // Documentation for 'dynamsoft-barcode-reader-bundle' suggests:
-            // It exports `BarcodeScanner` which has `createInstance`.
-
-            await scanner.updateRuntimeSettings("balance"); // Balance speed/accuracy
-
-            // We need a UI container provided to the scanner, usually.
-            // But the previous code didn't provide one in the config? It seemingly relied on default UI.
-            // Let's ensure we attach it to a DOM element.
-
-            if (scannerRef.current) {
-                // If we already had one, destroy it?
-                // But we are in init.
+            const Dynamsoft = window.Dynamsoft;
+            if (!Dynamsoft) {
+                throw new Error("Dynamsoft global not found after import");
             }
 
-            // Define scan handler
-            scanner.onUniqueRead = (txt, result) => {
+            // Configure license
+            Dynamsoft.License.LicenseManager.initLicense("DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk3MTAxOTIyNjQiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6InRlc3RAdGVzdCIsImNoZWNrU2F2ZWRUcmFja2luZyI6ZmFsc2UsInByb2R1Y3RzIjpbIkRCUiIsIkRMU1AiLCJEVlIiLCJEVlIiLCJEM1BEIl0sImV4cGlyeSI6MTY0OTcxMDE5MjI2NH0=");
+
+            // Point to local resources if needed (often needed for WASM)
+            // But we will let it try default or CDN fallback if local fails
+            // Dynamsoft.Core.CoreModule.engineResourcePaths = { ... } 
+
+            let scanner;
+
+            // Try newer API: CaptureVisionRouter or BarcodeScanner
+            if (Dynamsoft.DBR && Dynamsoft.DBR.CaptureVisionRouter) {
+                // v10+ Router approach? No, let's stick to BarcodeScanner which is the bundle wrapper
+            }
+
+            // The Bundle usually exposes 'BarcodeScanner' directly under Dynamsoft for easy use
+            const ScannerClass = Dynamsoft.BarcodeScanner;
+
+            if (ScannerClass.createInstance) {
+                scanner = await ScannerClass.createInstance();
+            } else {
+                // Fallback to constructor
+                scanner = new ScannerClass();
+            }
+
+            // Configure
+            const settings = await scanner.getRuntimeSettings();
+            // Code 128 ID: 1073741824 (from some docs) or 67108864 (legacy)
+            // Safest: Use String if API supports it, or just rely on default (all)
+            // settings.barcodeFormatIds = Dynamsoft.DBR.EnumBarcodeFormat.BF_CODE_128; 
+
+            // We'll update settings to balance
+            await scanner.updateRuntimeSettings("balance");
+
+            scanner.onUniqueRead = (txt) => {
                 onScan?.(txt);
                 setLastScanned(txt);
                 playBeep();
@@ -54,7 +57,6 @@ export default function BarcodeScanner({ onScan, onError, isActive = true }) {
                 setTimeout(() => setLastScanned(null), 2000);
             };
 
-            // Store instance
             scannerRef.current = scanner;
             setIsReady(true);
 
