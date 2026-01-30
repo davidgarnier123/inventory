@@ -469,6 +469,12 @@
     cursor: not-allowed;
 }
 
+.plan-creation-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+}
+
 .saved-plans {
     margin-top: var(--space-lg);
     border-top: 1px solid var(--glass-border);
@@ -525,11 +531,23 @@
     padding: var(--space-xs) var(--space-sm);
     cursor: pointer;
     transition: all 0.2s ease;
+    font-size: 1rem;
 }
 
 .plan-action-btn:hover {
     background: var(--bg-secondary);
     border-color: var(--primary);
+}
+
+.plan-action-btn.primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+}
+
+.plan-action-btn.primary:hover {
+    background: #4f46e5;
+    box-shadow: 0 0 10px var(--primary-glow);
 }
 
 .plan-action-btn.danger:hover {

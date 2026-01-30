@@ -151,6 +151,33 @@ export default function Settings() {
         setIsSavingPlan(false);
     };
 
+    const handleSaveAndStartPlan = async () => {
+        if (!planName || selectedServices.size === 0) return;
+
+        setIsSavingPlan(true);
+        try {
+            const plan = {
+                id: Date.now().toString(),
+                name: planName,
+                services: Array.from(selectedServices),
+                createdAt: new Date().toISOString()
+            };
+            await savePlan(plan);
+
+            navigate('/inventory', {
+                state: {
+                    selectedServices: plan.services,
+                    planId: plan.id,
+                    planName: plan.name
+                }
+            });
+        } catch (err) {
+            console.error('Save and start plan error:', err);
+            setImportStatus({ type: 'error', message: 'Erreur lors de la sauvegarde du plan' });
+            setIsSavingPlan(false);
+        }
+    };
+
     const handleDeletePlan = async (id) => {
         try {
             await deletePlan(id);
@@ -283,13 +310,22 @@ export default function Settings() {
                             <span>{getSelectedEquipmentCount()} équipements dans ce plan</span>
                         </div>
 
-                        <button
-                            className="action-btn primary"
-                            onClick={handleSavePlan}
-                            disabled={!planName || selectedServices.size === 0 || isSavingPlan}
-                        >
-                            {isSavingPlan ? 'Sauvegarde...' : '💾 Sauvegarder le plan'}
-                        </button>
+                        <div className="plan-creation-actions">
+                            <button
+                                className="action-btn"
+                                onClick={handleSavePlan}
+                                disabled={!planName || selectedServices.size === 0 || isSavingPlan}
+                            >
+                                {isSavingPlan ? '...' : '💾 Sauvegarder'}
+                            </button>
+                            <button
+                                className="action-btn primary"
+                                onClick={handleSaveAndStartPlan}
+                                disabled={!planName || selectedServices.size === 0 || isSavingPlan}
+                            >
+                                {isSavingPlan ? '...' : '🚀 Sauvegarder & Lancer'}
+                            </button>
+                        </div>
                     </div>
 
                     {plans.length > 0 && (
@@ -303,6 +339,19 @@ export default function Settings() {
                                             <span className="plan-meta">{plan.services.length} services sélectionnés</span>
                                         </div>
                                         <div className="plan-actions">
+                                            <button
+                                                className="plan-action-btn primary"
+                                                onClick={() => navigate('/inventory', {
+                                                    state: {
+                                                        selectedServices: plan.services,
+                                                        planId: plan.id,
+                                                        planName: plan.name
+                                                    }
+                                                })}
+                                                title="Démarrer l'inventaire"
+                                            >
+                                                ▶
+                                            </button>
                                             <button
                                                 className="plan-action-btn"
                                                 onClick={() => handleExportPlan(plan)}
@@ -338,72 +387,6 @@ export default function Settings() {
                     </div>
                 </section>
 
-
-                <section className="settings-section">
-                    <h2>📊 Données stockées</h2>
-
-                    {isLoading ? (
-                        <div className="loading">
-                            <div className="mini-spinner"></div>
-                            <span>Chargement...</span>
-                        </div>
-                    ) : equipment.length === 0 ? (
-                        <p className="empty-message">Aucune donnée stockée</p>
-                    ) : (
-                        <>
-                            <div className="data-summary">
-                                <div className="summary-card">
-                                    <span className="summary-value">{equipment.length}</span>
-                                    <span className="summary-label">Équipements</span>
-                                </div>
-                                <div className="summary-card">
-                                    <span className="summary-value">{services.length}</span>
-                                    <span className="summary-label">Services</span>
-                                </div>
-                            </div>
-
-                            <div className="type-breakdown">
-                                {Object.entries(stats.byType).map(([type, count]) => (
-                                    <div key={type} className="type-item">
-                                        <span className="type-icon">{getEquipmentTypeIcon(type)}</span>
-                                        <span className="type-name">{type}</span>
-                                        <span className="type-count">{count}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="data-actions">
-                                <button className="action-btn export" onClick={handleExport}>
-                                    📥 Exporter en CSV
-                                </button>
-                                <button
-                                    className="action-btn danger"
-                                    onClick={() => setShowConfirmClear(true)}
-                                >
-                                    🗑️ Supprimer toutes les données
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </section>
-
-                <section className="settings-section">
-                    <h2>📷 Scanner</h2>
-                    <p className="section-desc">
-                        Configuration du scanner de codes-barres Dynamsoft.
-                    </p>
-
-                    <div className="scanner-info">
-                        <div className="info-row">
-                            <span className="info-label">Format supporté:</span>
-                            <span className="info-value">Code 128</span>
-                        </div>
-                        <div className="info-row">
-                            <span className="info-label">Licence:</span>
-                            <span className="info-value trial">Version d'essai</span>
-                        </div>
-                    </div>
-                </section>
 
                 <section className="settings-section">
                     <h2>ℹ️ À propos</h2>

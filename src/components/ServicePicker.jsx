@@ -1,71 +1,44 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import './ServicePicker.css';
 
 export default function ServicePicker({ services, selectedServices, onSelectionChange, equipmentCounts = {} }) {
-    // Current path in the navigation (array of service paths)
     const [navigationStack, setNavigationStack] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    // Build a map for quick access to services by path
+    // --- Data Preparation ---
+
     const serviceMap = useMemo(() => {
         const map = new Map();
         services.forEach(svc => map.set(svc.path, svc));
         return map;
     }, [services]);
 
-    // Build tree structure from flat services list
-    const buildTree = useCallback(() => {
-        const nodeMap = new Map();
-        const rootNodes = [];
+    const { rootNodes, nodeMap } = useMemo(() => {
+        const nMap = new Map();
+        const rNodes = [];
 
-        // Create node objects
         services.forEach(svc => {
-            nodeMap.set(svc.path, {
+            nMap.set(svc.path, {
                 ...svc,
                 children: [],
                 equipmentCount: equipmentCounts[svc.path] || 0
             });
         });
 
-        // Build parent-child relationships
         services.forEach(svc => {
-            const node = nodeMap.get(svc.path);
-            if (svc.parent && nodeMap.has(svc.parent)) {
-                nodeMap.get(svc.parent).children.push(node);
-            } else if (!svc.parent) {
-                rootNodes.push(node);
+            const node = nMap.get(svc.path);
+            if (svc.parent && nMap.has(svc.parent)) {
+                nMap.get(svc.parent).children.push(node);
             } else {
-                rootNodes.push(node);
+                rNodes.push(node);
             }
         });
 
-        return { rootNodes, nodeMap };
+        return { rootNodes: rNodes, nodeMap: nMap };
     }, [services, equipmentCounts]);
 
-    const { rootNodes, nodeMap } = buildTree();
+    // --- Helpers ---
 
-    // Get current visible nodes based on navigation stack
-    const getCurrentNodes = () => {
-        if (navigationStack.length === 0) {
-            return rootNodes;
-        }
-        const currentPath = navigationStack[navigationStack.length - 1];
-        const currentNode = nodeMap.get(currentPath);
-        return currentNode?.children || [];
-    };
-
-    // Check if a service (and all its descendants) is selected
-    const isFullySelected = (node) => {
-        if (!selectedServices.has(node.path)) return false;
-        return node.children.every(child => isFullySelected(child));
-    };
-
-    // Check if a service or any of its descendants is selected
-    const isPartiallySelected = (node) => {
-        if (selectedServices.has(node.path)) return true;
-        return node.children.some(child => isPartiallySelected(child));
-    };
-
-    // Get all descendant paths of a node
     const getDescendants = (node) => {
         let paths = [node.path];
         node.children.forEach(child => {
@@ -74,92 +47,89 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
         return paths;
     };
 
-    // Toggle selection for a single node and its descendants
+    const isSelectable = (node) => true; // All nodes are selectable
+
+    // Helper: count how many *selectable* descendants are currently selected
+    const getSelectedCountInBranch = (node) => {
+        const descendants = getDescendants(node);
+        return descendants.filter(path => selectedServices.has(path)).length;
+    };
+
+    // Helper: Check if fully selected (visual helper for leaf nodes)
+    const isSelected = (node) => selectedServices.has(node.path);
+
+    // --- Actions ---
+
     const toggleSelection = (node) => {
         const newSelection = new Set(selectedServices);
-        const descendants = getDescendants(node);
 
-        if (isFullySelected(node)) {
-            // Deselect this node and all descendants
-            descendants.forEach(p => newSelection.delete(p));
-        } else {
-            // Select this node and all descendants
-            descendants.forEach(p => newSelection.add(p));
-        }
-
-        onSelectionChange(newSelection);
-    };
-
-    // Navigate into a service's children
-    const navigateInto = (servicePath) => {
-        setNavigationStack([...navigationStack, servicePath]);
-    };
-
-    // Navigate back one level
-    const navigateBack = () => {
-        setNavigationStack(navigationStack.slice(0, -1));
-    };
-
-    // Navigate to a specific level in the breadcrumb
-    const navigateToLevel = (index) => {
-        if (index < 0) {
-            setNavigationStack([]);
-        } else {
-            setNavigationStack(navigationStack.slice(0, index + 1));
-        }
-    };
-
-    // Get current parent name for display
-    const getCurrentParentName = () => {
-        if (navigationStack.length === 0) return null;
-        const currentPath = navigationStack[navigationStack.length - 1];
-        return serviceMap.get(currentPath)?.name || '';
-    };
-
-    // Select all visible services
-    const selectAll = () => {
-        const newSelection = new Set(selectedServices);
-        getCurrentNodes().forEach(node => {
-            getDescendants(node).forEach(p => newSelection.add(p));
-        });
-        onSelectionChange(newSelection);
-    };
-
-    // Deselect all visible services
-    const deselectAll = () => {
-        const newSelection = new Set(selectedServices);
-        getCurrentNodes().forEach(node => {
+        if (newSelection.has(node.path)) {
+            newSelection.delete(node.path);
+            // Also deselect descendants if we want cascade behavior?
+            // Let's keep it simple: Select strictly the node.
+            // But usually, selecting a folder selects context.
+            // Let's implement cascade toggle for better UX.
             getDescendants(node).forEach(p => newSelection.delete(p));
-        });
+        } else {
+            newSelection.add(node.path);
+            getDescendants(node).forEach(p => newSelection.add(p));
+        }
+
         onSelectionChange(newSelection);
     };
 
-    // Search state
-    const [searchQuery, setSearchQuery] = useState('');
+    const navigateInto = (node) => {
+        setNavigationStack([...navigationStack, node.path]);
+        setSearchQuery(''); // Clear search when navigating deep
+    };
 
-    // Filter nodes based on search query or navigation stack
+    const navigateBack = () => {
+        setNavigationStack(prev => prev.slice(0, -1));
+    };
+
+    const clearSelection = () => {
+        onSelectionChange(new Set());
+    };
+
+    // --- Filtering & View Logic ---
+
+    // 1. Search Mode: Flatten everything, only show matching nodes (prefer selectable ones?)
+    // Let's show ANY matching node, but if it's a folder, they can click to jump to it?
+    // Actually, simple fit: Show matching SELECTABLE services directly.
+    const searchResults = useMemo(() => {
+        if (!searchQuery) return [];
+        const lowerQ = searchQuery.toLowerCase();
+        return services
+            .filter(svc =>
+                (svc.name.toLowerCase().includes(lowerQ) || svc.path.toLowerCase().includes(lowerQ))
+            )
+            .map(svc => nodeMap.get(svc.path));
+    }, [searchQuery, services, nodeMap]);
+
+    // 2. Navigation Mode: Show children of current stack
     const currentNodes = useMemo(() => {
-        if (searchQuery) {
-            // Flatten search: find all services matching query
-            return services.filter(svc =>
-                svc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                svc.path.toLowerCase().includes(searchQuery.toLowerCase())
-            ).map(svc => nodeMap.get(svc.path));
-        }
+        if (searchQuery) return searchResults;
 
         if (navigationStack.length === 0) {
             return rootNodes;
         }
         const currentPath = navigationStack[navigationStack.length - 1];
-        const currentNode = nodeMap.get(currentPath);
-        return currentNode?.children || [];
-    }, [searchQuery, navigationStack, rootNodes, nodeMap, services]);
+        return nodeMap.get(currentPath)?.children || [];
+    }, [navigationStack, rootNodes, nodeMap, searchQuery, searchResults]);
 
-    const isSearching = searchQuery.length > 0;
+    const currentParentTitle = useMemo(() => {
+        if (navigationStack.length === 0) return 'Services';
+        const currentPath = navigationStack[navigationStack.length - 1];
+        return serviceMap.get(currentPath)?.name || 'Dossier';
+    }, [navigationStack, serviceMap]);
+
+
+    // --- Render ---
 
     if (services.length === 0) {
         return (
             <div className="service-picker empty">
+                <div className="empty-state-icon">📂</div>
                 <p>Aucun service disponible. Importez d'abord un fichier CSV.</p>
             </div>
         );
@@ -167,124 +137,108 @@ export default function ServicePicker({ services, selectedServices, onSelectionC
 
     return (
         <div className="service-picker">
-            {/* Search Bar */}
-            <div className="picker-search">
-                <input
-                    type="text"
-                    placeholder="Rechercher un service..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="search-input"
-                />
-                {searchQuery && (
-                    <button className="search-clear" onClick={() => setSearchQuery('')}>✕</button>
+            {/* Header */}
+            <div className="picker-header">
+                <div className="search-container">
+                    <span className="search-icon">🔍</span>
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Rechercher un service..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button className="search-clear" onClick={() => setSearchQuery('')}>✕</button>
+                    )}
+                </div>
+
+                {!searchQuery && navigationStack.length > 0 && (
+                    <div className="nav-bar">
+                        <button className="nav-back-button" onClick={navigateBack}>
+                            ← Retour
+                        </button>
+                        <span className="current-path">{currentParentTitle}</span>
+                    </div>
                 )}
             </div>
 
-            {/* Breadcrumb Navigation - Hide when searching */}
-            {!isSearching && (
-                <div className="picker-breadcrumb">
-                    <button
-                        className={`breadcrumb-item ${navigationStack.length === 0 ? 'active' : ''}`}
-                        onClick={() => navigateToLevel(-1)}
-                    >
-                        Services
-                    </button>
-                    {navigationStack.map((path, index) => (
-                        <div key={path} className="breadcrumb-segment">
-                            <span className="breadcrumb-separator">/</span>
-                            <button
-                                className={`breadcrumb-item ${index === navigationStack.length - 1 ? 'active' : ''}`}
-                                onClick={() => navigateToLevel(index)}
-                            >
-                                {serviceMap.get(path)?.name || path}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Quick Actions */}
-            <div className="picker-actions">
-                <button className="picker-action-btn" onClick={selectAll}>
-                    ✓ Tout sélectionner
-                </button>
-                <button className="picker-action-btn" onClick={deselectAll}>
-                    ✗ Tout désélectionner
-                </button>
-                <span className="selected-count">
-                    {selectedServices.size} sélectionné(s)
-                </span>
-            </div>
-
-            {/* Back Button (when navigated into a folder) - Hide when searching */}
-            {!isSearching && navigationStack.length > 0 && (
-                <button className="picker-back-btn" onClick={navigateBack}>
-                    <span className="back-icon">←</span>
-                    <span className="back-text">Retour</span>
-                    <span className="current-folder">{getCurrentParentName()}</span>
-                </button>
-            )}
-
-            {/* Service List */}
-            <div className="picker-list">
+            {/* List */}
+            <div className="picker-content">
                 {currentNodes.length === 0 ? (
-                    <div className="picker-empty-folder">
-                        <span className="empty-icon">📄</span>
-                        <span>Aucun sous-service</span>
+                    <div className="empty-state">
+                        <div className="empty-state-icon">👻</div>
+                        <p>{searchQuery ? "Aucun résultat trouvé" : "Ce dossier est vide"}</p>
                     </div>
                 ) : (
                     currentNodes.map(node => {
+                        const selectable = isSelectable(node);
+                        const selected = selectable ? isSelected(node) : false;
                         const hasChildren = node.children.length > 0;
-                        const fullySelected = isFullySelected(node);
-                        const partiallySelected = !fullySelected && isPartiallySelected(node);
+                        const selectedCount = !selectable ? getSelectedCountInBranch(node) : 0;
 
                         return (
                             <div
                                 key={node.path}
-                                className={`picker-item ${fullySelected ? 'selected' : ''} ${partiallySelected ? 'partial' : ''}`}
+                                className={`service-item ${selectable ? 'selectable' : 'folder'} ${selected ? 'selected' : ''}`}
+                                onClick={() => {
+                                    if (selectable) {
+                                        toggleSelection(node);
+                                    } else if (hasChildren) {
+                                        navigateInto(node);
+                                    }
+                                }}
                             >
-                                {/* Selection Checkbox */}
-                                <button
-                                    className="item-checkbox"
-                                    onClick={() => toggleSelection(node)}
-                                    aria-label={fullySelected ? 'Désélectionner' : 'Sélectionner'}
-                                >
-                                    {fullySelected ? (
-                                        <span className="check-icon checked">✓</span>
-                                    ) : partiallySelected ? (
-                                        <span className="check-icon partial">−</span>
-                                    ) : (
-                                        <span className="check-icon"></span>
-                                    )}
-                                </button>
-
-                                {/* Service Info */}
-                                <div className="item-content" onClick={() => hasChildren && navigateInto(node.path)}>
-                                    <div className="item-header">
-                                        <span className="item-icon">{hasChildren ? '📁' : '📄'}</span>
-                                        <span className="item-name">{node.name}</span>
+                                {/* Left: Icon + Info */}
+                                <div className="item-left">
+                                    <div className="item-icon-box">
+                                        {selectable ? (
+                                            <div className="custom-checkbox">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            </div>
+                                        ) : (
+                                            <span>{hasChildren ? '📁' : '📄'}</span>
+                                        )}
                                     </div>
-                                    {node.equipmentCount > 0 && (
-                                        <span className="item-count">{node.equipmentCount} équip.</span>
-                                    )}
+                                    <div className="item-info">
+                                        <span className="item-name">{node.name}</span>
+                                        {/* Show parent path in search results so user knows context */}
+                                        {searchQuery && (
+                                            <span className="item-meta">{node.path.split('/').slice(0, -1).join(' / ')}</span>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* Navigate Button (if has children) */}
-                                {hasChildren && (
-                                    <button
-                                        className="item-navigate"
-                                        onClick={() => navigateInto(node.path)}
-                                        aria-label="Voir les sous-services"
-                                    >
-                                        <span className="navigate-count">{node.children.length}</span>
-                                        <span className="navigate-icon">›</span>
-                                    </button>
-                                )}
+                                {/* Right: Action / Meta */}
+                                <div className="item-right">
+                                    {!selectable && selectedCount > 0 && (
+                                        <span className="selection-badge">{selectedCount}</span>
+                                    )}
+                                    {!selectable && (
+                                        <span className="chevron-icon">›</span>
+                                    )}
+                                </div>
                             </div>
                         );
                     })
                 )}
+            </div>
+
+            {/* Footer */}
+            <div className="picker-footer">
+                <div className="selection-summary">
+                    <span className="selection-count">{selectedServices.size}</span>
+                    <span className="selection-label">sélectionnés</span>
+                </div>
+                <div className="footer-actions">
+                    {selectedServices.size > 0 && (
+                        <button className="footer-btn clear" onClick={clearSelection}>
+                            Tout effacer
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
