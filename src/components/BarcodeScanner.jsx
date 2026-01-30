@@ -16,16 +16,17 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
         let scanner = null;
 
         const init = async () => {
-            // Wait for CDN library to be available
+            // Attente que le script chargé dans index.html soit prêt
             let checkAttempts = 0;
-            while (checkAttempts < 30 && !window.Dynamsoft) {
+            while (checkAttempts < 20 && !window.Dynamsoft) {
                 await new Promise(r => setTimeout(r, 100));
                 checkAttempts++;
             }
 
-            if (!isMounted) return;
-            if (!window.Dynamsoft) {
-                onErrorRef.current?.("La librairie Dynamsoft n'a pas pu être chargée.");
+            if (!isMounted || !window.Dynamsoft) {
+                if (isMounted && !window.Dynamsoft) {
+                    onErrorRef.current?.("La librairie Dynamsoft n'a pas pu être chargée via le CDN.");
+                }
                 return;
             }
 
@@ -37,7 +38,7 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
                 return;
             }
 
-            // Wait for container Ref
+            // Attente que le conteneur soit prêt et visible
             let domAttempts = 0;
             while (domAttempts < 20 && isMounted) {
                 if (containerRef.current && containerRef.current.offsetHeight > 0) break;
@@ -48,32 +49,41 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
             if (!isMounted || !containerRef.current) return;
 
             try {
+                // Demande explicite de l'accès caméra pour éviter l'écran blanc sur mobile
+                try {
+                    console.log("[Scanner] Demande d'accès caméra...");
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    stream.getTracks().forEach(track => track.stop()); // On coupe le flux de test
+                } catch (camErr) {
+                    console.error("[Scanner] Accès caméra refusé:", camErr);
+                    if (isMounted && onErrorRef.current) {
+                        onErrorRef.current("Accès caméra refusé. Veuillez autoriser la caméra dans les réglages.");
+                    }
+                    return;
+                }
+
                 const license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA1MDYwNTQxLU1UQTFNRFl3TlRReExYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwib3JnYW5pemF0aW9uSUQiOiIxMDUwNjA1NDEiLCJzdGFuZGJ5U2VydmVyVVJMIjoiaHR0cHM6Ly9zZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwiY2hlY2tDb2RlIjo1OTU1MDkyODN9";
 
-                // Using constructor as in your working example
                 BarcodeScannerClass.license = license;
 
                 const config = {
                     container: containerRef.current,
-                    license: license,
-                    scanMode: Dynamsoft.EnumScanMode ? Dynamsoft.EnumScanMode.SM_MULTI_UNIQUE : 2,
+                    scanMode: Dynamsoft.EnumScanMode.SM_MULTI_UNIQUE,
                     barcodeFormats: [window.Dynamsoft.DBR?.EnumBarcodeFormat?.BF_CODE_128 || 0x400],
                     showPoweredByDynamsoft: false,
                     showResultView: false,
                     showUploadImageButton: false,
                     autoStartCapturing: true,
                     scannerViewConfig: {
-                        showCloseButton: true,
+                        showCloseButton: false,
                         showFlashButton: true,
-                        cameraSwitchControl: "toggleFrontBack",
                     },
                     onUniqueBarcodeScanned: (result) => {
-                        console.log("[Dynamsoft] Scanned:", result.text);
                         if (onScanRef.current) onScanRef.current(result.text, result);
                     }
                 };
 
-                // MATCHING YOUR WORKING SNIPPET: new BarcodeScanner(config)
+                // On utilise le constructeur simple comme dans votre projet fonctionnel
                 scanner = new BarcodeScannerClass(config);
                 scannerRef.current = scanner;
 
@@ -94,14 +104,11 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
             }
         };
 
-        // Delay to avoid strict mode race
-        const timer = setTimeout(init, 300);
+        init();
 
         return () => {
             isMounted = false;
-            clearTimeout(timer);
-            if (scanner) {
-                console.log("[Dynamsoft] Disposing...");
+            if (scanner && scanner.dispose) {
                 scanner.dispose();
             }
         };
@@ -109,13 +116,11 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
 
     useEffect(() => {
         if (scannerRef.current && isReady) {
-            try {
-                if (isActive) {
-                    scannerRef.current.show().catch(() => { });
-                } else {
-                    scannerRef.current.hide();
-                }
-            } catch (e) { }
+            if (isActive) {
+                scannerRef.current.show().catch(() => { });
+            } else {
+                scannerRef.current.hide();
+            }
         }
     }, [isActive, isReady]);
 
@@ -133,6 +138,7 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
                 overflow: 'hidden'
             }}
         >
+            {/* Injection point for Dynamsoft UI */}
             <div className="dce-video-container" style={{ width: '100%', height: '100%' }}></div>
         </div>
     );
