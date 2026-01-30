@@ -225,40 +225,38 @@ export default function InventorySession() {
             </div>
 
             <div className="session-content">
-                {viewMode === 'scanner' && (
-                    <div className="scanner-section">
-                        <BarcodeScanner
-                            onScan={handleScan}
-                            onError={handleScanError}
-                            isActive={scannerActive}
-                        />
+                <div className="scanner-section" style={{ display: viewMode === 'scanner' ? 'flex' : 'none' }}>
+                    <BarcodeScanner
+                        onScan={handleScan}
+                        onError={handleScanError}
+                        isActive={scannerActive && viewMode === 'scanner'}
+                    />
 
-                        {scanError && (
-                            <div className="scan-error">
-                                <span className="error-icon">⚠️</span>
-                                <span>{scanError}</span>
-                            </div>
-                        )}
+                    {scanError && (
+                        <div className="scan-error">
+                            <span className="error-icon">⚠️</span>
+                            <span>{scanError}</span>
+                        </div>
+                    )}
 
-                        {lastScanResult && (
-                            <div className={`last-scan ${lastScanResult.type}`}>
-                                {lastScanResult.type === 'unknown' ? (
-                                    <div className="unknown-scan">
-                                        <span className="scan-icon">❓</span>
-                                        <span className="scan-code">{lastScanResult.code}</span>
-                                        <span className="scan-message">{lastScanResult.message}</span>
-                                    </div>
-                                ) : (
-                                    <EquipmentCard
-                                        equipment={lastScanResult.equipment}
-                                        compact
-                                        isHighlighted
-                                    />
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
+                    {lastScanResult && (
+                        <div className={`last-scan ${lastScanResult.type}`}>
+                            {lastScanResult.type === 'unknown' ? (
+                                <div className="unknown-scan">
+                                    <span className="scan-icon">❓</span>
+                                    <span className="scan-code">{lastScanResult.code}</span>
+                                    <span className="scan-message">{lastScanResult.message}</span>
+                                </div>
+                            ) : (
+                                <EquipmentCard
+                                    equipment={lastScanResult.equipment}
+                                    compact
+                                    isHighlighted
+                                />
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {viewMode === 'list' && (
                     <div className="list-section">
