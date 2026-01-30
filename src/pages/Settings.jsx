@@ -77,6 +77,11 @@ export default function Settings() {
 
         try {
             const content = await file.text();
+
+            // Clear existing data to prevent mixing/pollution
+            await clearAllEquipment();
+            await clearAllServices();
+
             const { equipment: newEquipment, services: newServices } = parseCSV(content);
 
             if (newEquipment.length === 0) {
@@ -129,13 +134,14 @@ export default function Settings() {
     };
 
     const handleSavePlan = async () => {
-        if (!planName || selectedServices.size === 0) return;
+        if (selectedServices.size === 0) return;
 
         setIsSavingPlan(true);
         try {
+            const finalName = planName.trim() || `Inventaire ${new Date().toLocaleDateString()}`;
             const plan = {
                 id: Date.now().toString(),
-                name: planName,
+                name: finalName,
                 services: Array.from(selectedServices),
                 createdAt: new Date().toISOString()
             };
@@ -152,13 +158,14 @@ export default function Settings() {
     };
 
     const handleSaveAndStartPlan = async () => {
-        if (!planName || selectedServices.size === 0) return;
+        if (selectedServices.size === 0) return;
 
         setIsSavingPlan(true);
         try {
+            const finalName = planName.trim() || `Inventaire ${new Date().toLocaleDateString()}`;
             const plan = {
                 id: Date.now().toString(),
-                name: planName,
+                name: finalName,
                 services: Array.from(selectedServices),
                 createdAt: new Date().toISOString()
             };
@@ -314,14 +321,14 @@ export default function Settings() {
                             <button
                                 className="action-btn"
                                 onClick={handleSavePlan}
-                                disabled={!planName || selectedServices.size === 0 || isSavingPlan}
+                                disabled={selectedServices.size === 0 || isSavingPlan}
                             >
                                 {isSavingPlan ? '...' : '💾 Sauvegarder'}
                             </button>
                             <button
                                 className="action-btn primary"
                                 onClick={handleSaveAndStartPlan}
-                                disabled={!planName || selectedServices.size === 0 || isSavingPlan}
+                                disabled={selectedServices.size === 0 || isSavingPlan}
                             >
                                 {isSavingPlan ? '...' : '🚀 Sauvegarder & Lancer'}
                             </button>
