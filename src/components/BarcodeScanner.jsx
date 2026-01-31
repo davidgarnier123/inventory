@@ -135,12 +135,7 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
                 style={{ width: '100%', height: '100%' }}
             />
 
-            {status === 'loading' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', zIndex: 10, background: 'rgba(0,0,0,0.8)' }}>
-                    <div className="loading-spinner" style={{ marginBottom: '10px' }}></div>
-                    <p>Initialisation de la caméra...</p>
-                </div>
-            )}
+            {/* Loader removed as requested */}
 
             {status === 'ready' && (
                 <div className="scanner-controls" style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '20px', zIndex: 11 }}>

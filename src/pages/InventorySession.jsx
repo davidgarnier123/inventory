@@ -27,6 +27,7 @@ export default function InventorySession() {
         planId: planId,
         planName: planName,
         scannedItems: [],
+        unexpectedScans: [], // Track unknown or out-of-scope items
         status: 'active'
     });
 
@@ -48,7 +49,10 @@ export default function InventorySession() {
                 const { getSession } = await import('../services/database');
                 const existingSession = await getSession(location.state.sessionId);
                 if (existingSession) {
-                    setSession(existingSession);
+                    setSession({
+                        ...existingSession,
+                        unexpectedScans: existingSession.unexpectedScans || []
+                    });
                 }
             }
             await loadEquipment();
@@ -101,6 +105,13 @@ export default function InventorySession() {
                 code,
                 message: 'Équipement non trouvé dans la base'
             });
+            // Track unknown item
+            const newSession = {
+                ...session,
+                unexpectedScans: [...(session.unexpectedScans || []), { code, type: 'unknown', date: new Date().toISOString() }]
+            };
+            setSession(newSession);
+            await saveSession(newSession);
             return;
         }
 
@@ -119,9 +130,12 @@ export default function InventorySession() {
         await saveEquipment(updatedEquipment);
 
         // Update session
+        const newUnexpected = !inScope ? [...(session.unexpectedScans || []), { code, type: 'outOfScope', equipment: updatedEquipment, date: new Date().toISOString() }] : (session.unexpectedScans || []);
+
         const newSession = {
             ...session,
-            scannedItems: [...new Set([...(session.scannedItems || []), code])]
+            scannedItems: [...new Set([...(session.scannedItems || []), code])],
+            unexpectedScans: newUnexpected
         };
         setSession(newSession);
         await saveSession(newSession);
@@ -157,6 +171,7 @@ export default function InventorySession() {
             await saveEquipment({
                 ...eq,
                 inventoryStatus: hasError ? 'error' : status,
+                attributionError: hasError,
                 lastScannedAt: new Date().toISOString()
             });
             await loadEquipment();
@@ -309,24 +324,63 @@ export default function InventorySession() {
 
                 {viewMode === 'list' && (
                     <div className="list-section">
-                        <div className="list-filters">
-                            <button className="filter-btn active">Tous ({filteredEquipment.length})</button>
-                            <button className="filter-btn">En attente ({stats.missing})</button>
-                            <button className="filter-btn">Trouvés ({stats.found})</button>
-                        </div>
+                        <div className="list-categories">
+                            {/* ABSENTS */}
+                            <div className="list-category absent">
+                                <h3 className="category-title">
+                                    <span className="icon">⭕</span> Absents ({filteredEquipment.filter(e => e.inventoryStatus === 'pending').length})
+                                </h3>
+                                <div className="equipment-list">
+                                    {filteredEquipment.filter(e => e.inventoryStatus === 'pending').map(eq => (
+                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact />
+                                    ))}
+                                </div>
+                            </div>
 
-                        <div className="equipment-list">
-                            {filteredEquipment.map(eq => (
-                                <EquipmentCard
-                                    key={eq.serialNumber}
-                                    equipment={eq}
-                                    compact
-                                    onClick={(e) => setLastScanResult({
-                                        type: 'success',
-                                        equipment: e
-                                    })}
-                                />
-                            ))}
+                            {/* ERREURS D'ATTRIBUTION */}
+                            <div className="list-category errors">
+                                <h3 className="category-title">
+                                    <span className="icon">⚠️</span> Erreurs attribution ({filteredEquipment.filter(e => e.attributionError).length})
+                                </h3>
+                                <div className="equipment-list">
+                                    {filteredEquipment.filter(e => e.attributionError).map(eq => (
+                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact isHighlighted />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* IMPRÉVUS / NON ATTENDUS */}
+                            <div className="list-category unexpected">
+                                <h3 className="category-title">
+                                    <span className="icon">❓</span> Imprévus ({session.unexpectedScans?.length || 0})
+                                </h3>
+                                <div className="equipment-list">
+                                    {(session.unexpectedScans || []).map((scan, idx) => (
+                                        <div key={idx} className="unexpected-item-card">
+                                            {scan.equipment ? (
+                                                <EquipmentCard equipment={scan.equipment} compact />
+                                            ) : (
+                                                <div className="unknown-scanned-code">
+                                                    <span className="code">{scan.code}</span>
+                                                    <span className="label">Code inconnu</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* TROUVÉS */}
+                            <div className="list-category found">
+                                <h3 className="category-title">
+                                    <span className="icon">✅</span> Présents ({filteredEquipment.filter(e => e.inventoryStatus === 'found' && !e.attributionError).length})
+                                </h3>
+                                <div className="equipment-list">
+                                    {filteredEquipment.filter(e => e.inventoryStatus === 'found' && !e.attributionError).map(eq => (
+                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact />
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

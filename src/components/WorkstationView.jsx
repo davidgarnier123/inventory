@@ -129,51 +129,65 @@ export default function WorkstationView({
                 </div>
             </div>
 
-            <div className="linked-section">
-                <div className="section-header">
-                    <h3>Périphériques liés ({linkedEquipment.length})</h3>
-                    <button className="validate-all-btn" onClick={validateAll}>
-                        Tout valider
-                    </button>
-                </div>
-
-                <div className="linked-list">
-                    {linkedEquipment.length === 0 ? (
-                        <p className="no-linked">Aucun périphérique lié trouvé</p>
-                    ) : (
-                        linkedEquipment.map(eq => (
-                            <div
-                                key={eq.serialNumber}
-                                className={`linked-item ${validatedItems.has(eq.serialNumber) ? 'validated' : ''}`}
-                                onClick={() => toggleValidation(eq.serialNumber)}
-                            >
-                                <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
-                                <div className="item-details">
-                                    <span className="item-type">{getEquipmentTypeName(eq.type)}</span>
-                                    <span className="item-model">{eq.brand} {eq.model}</span>
-                                    <span className="item-serial">{eq.serialNumber}</span>
+            <div className="workstation-categories">
+                {/* ABSENTS */}
+                {allItems.some(eq => !validatedItems.has(eq.serialNumber)) && (
+                    <div className="workstation-category absent">
+                        <h3 className="category-title">⭕ Équipements manquants</h3>
+                        <div className="linked-list">
+                            {allItems.filter(eq => !validatedItems.has(eq.serialNumber)).map(eq => (
+                                <div key={eq.serialNumber} className="linked-item absent" onClick={() => toggleValidation(eq.serialNumber)}>
+                                    <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
+                                    <div className="item-details">
+                                        <span className="item-type">{getEquipmentTypeName(eq.type)}</span>
+                                        <span className="item-model">{eq.brand} {eq.model}</span>
+                                        <span className="item-serial">{eq.serialNumber}</span>
+                                    </div>
+                                    <div className="item-check">○</div>
                                 </div>
-                                <div className="item-check">
-                                    {validatedItems.has(eq.serialNumber) ? '✓' : '○'}
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
+                {/* IMPRÉVUS */}
                 {unexpectedItems.length > 0 && (
-                    <div className="unexpected-section">
-                        <h3>⚠️ Équipements imprévus ({unexpectedItems.length})</h3>
-                        <div className="unexpected-list">
+                    <div className="workstation-category unexpected">
+                        <h3 className="category-title">❓ Matériel imprévu sur ce poste</h3>
+                        <div className="linked-list">
                             {unexpectedItems.map((item, idx) => (
-                                <div key={idx} className="unexpected-item">
-                                    <span className="item-code">{item.code}</span>
+                                <div key={idx} className="linked-item unexpected">
+                                    <div className="item-icon">❓</div>
+                                    <div className="item-details">
+                                        <span className="item-type">HORS INVENTAIRE POSTE</span>
+                                        <span className="item-model">{item.code}</span>
+                                    </div>
                                     <button
                                         className="remove-unexpected"
                                         onClick={() => setUnexpectedItems(prev => prev.filter((_, i) => i !== idx))}
                                     >
                                         ✕
                                     </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* PRÉSENTS */}
+                {validatedItems.size > 0 && (
+                    <div className="workstation-category present">
+                        <h3 className="category-title">✅ Équipements validés</h3>
+                        <div className="linked-list">
+                            {allItems.filter(eq => validatedItems.has(eq.serialNumber)).map(eq => (
+                                <div key={eq.serialNumber} className="linked-item validated" onClick={() => toggleValidation(eq.serialNumber)}>
+                                    <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
+                                    <div className="item-details">
+                                        <span className="item-type">{getEquipmentTypeName(eq.type)}</span>
+                                        <span className="item-model">{eq.brand} {eq.model}</span>
+                                        <span className="item-serial">{eq.serialNumber}</span>
+                                    </div>
+                                    <div className="item-check">✓</div>
                                 </div>
                             ))}
                         </div>
