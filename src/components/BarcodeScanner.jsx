@@ -3,9 +3,9 @@
 const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
     const containerRef = useRef(null);
     const scannerRef = useRef(null);
-    const [status, setStatus] = useState('loading'); // 'loading', 'ready', 'error'
-    const [isManuallyStopped, setIsManuallyStopped] = useState(false);
+    const [status, setStatus] = useState('loading'); // 'loading', 'ready', 'error', 'stopped'
     const [errorMessage, setErrorMessage] = useState('');
+    const [initKey, setInitKey] = useState(0); // Used to force a full re-init
 
     const onScanRef = useRef(onScan);
     useEffect(() => { onScanRef.current = onScan; }, [onScan]);
@@ -13,29 +13,47 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
     const onErrorRef = useRef(onError);
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
-    const isInitializing = useRef(false);
+    // Cleanup helper
+    const cleanupScanner = async () => {
+        if (scannerRef.current) {
+            const s = scannerRef.current;
+            scannerRef.current = null;
+            try {
+                console.log("[Scanner] Full disposal...");
+                await s.dispose();
+            } catch (e) {
+                console.warn("[Scanner] Dispose error:", e);
+            }
+        }
+    };
 
+    // Full Initialization Logic
     useEffect(() => {
         let isMounted = true;
+        let scannerInstance = null;
 
         const init = async () => {
-            if (isInitializing.current) return;
-            isInitializing.current = true;
+            // Respect the isActive prop from parent (e.g. if we are on List tab, don't init)
+            if (!isActive) {
+                setStatus('stopped');
+                return;
+            }
+
+            setStatus('loading');
             try {
-                // Wait for Dynamsoft library
-                let checkAttempts = 0;
-                while (checkAttempts < 50 && !window.Dynamsoft && isMounted) {
+                // Wait for library
+                let attempts = 0;
+                while (attempts < 50 && !window.Dynamsoft && isMounted) {
                     await new Promise(r => setTimeout(r, 100));
-                    checkAttempts++;
+                    attempts++;
                 }
 
                 if (!isMounted) return;
-                if (!window.Dynamsoft) throw new Error("Dynamsoft non chargé");
+                if (!window.Dynamsoft) throw new Error("Dynamsoft library not found.");
 
                 const Dynamsoft = window.Dynamsoft;
                 const BarcodeScannerClass = Dynamsoft.BarcodeScanner || (Dynamsoft.DBR && Dynamsoft.DBR.BarcodeScanner);
-                if (!BarcodeScannerClass) throw new Error("Classe BarcodeScanner introuvable");
-
+                
                 const license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA1MDYwNTQxLU1UQTFNRFl3TlRReExYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwib3JnYW5pemF0aW9uSUQiOiIxMDUwNjA1NDEiLCJzdGFuZGJ5U2VydmVyVVJMIjoiaHR0cHM6Ly9zZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwiY2hlY2tDb2RlIjo1OTU1MDkyODN9";
                 BarcodeScannerClass.license = license;
 
@@ -47,36 +65,31 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
                     showPoweredByDynamsoft: false,
                     showResultView: false,
                     showUploadImageButton: false,
-                    autoStartCapturing: isActive,
-                    scannerViewConfig: {
-                        showCloseButton: true,
-                        showFlashButton: true,
-                        cameraSwitchControl: "toggleFrontBack",
-                    },
+                    autoStartCapturing: true,
                     onUniqueBarcodeScanned: (result) => {
                         if (onScanRef.current) onScanRef.current(result.text, result);
                     }
                 };
 
-                const scanner = new BarcodeScannerClass(config);
-                scannerRef.current = scanner;
-                
-                // Use launch() as it was the only method working in initial stable version
-                await scanner.launch();
+                console.log("[Scanner] Creating new instance...");
+                scannerInstance = new BarcodeScannerClass(config);
+                scannerRef.current = scannerInstance;
+
+                await scannerInstance.launch();
                 
                 if (isMounted) {
                     setStatus('ready');
                 } else {
-                    scanner.dispose();
+                    scannerInstance.dispose();
                 }
+
             } catch (err) {
-                console.error("Scanner Init Error:", err);
+                console.error("[Scanner] Init failed:", err);
                 if (isMounted) {
                     setStatus('error');
-                    setErrorMessage(err.message || "Erreur caméra");
+                    setErrorMessage(err.message || "Erreur d'initialisation");
+                    if (onErrorRef.current) onErrorRef.current(err.message);
                 }
-            } finally {
-                isInitializing.current = false;
             }
         };
 
@@ -85,65 +98,59 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
         return () => {
             isMounted = false;
             clearTimeout(timer);
-            if (scannerRef.current) {
-                const s = scannerRef.current;
-                scannerRef.current = null;
-                s.dispose();
-            }
+            cleanupScanner();
         };
-    }, []);
+    }, [initKey, isActive]); // Re-runs on manual restart OR when isActive changes
 
-    // Handle Active/Inactive and Manual Stop/Start
-    useEffect(() => {
-        const toggle = async () => {
-            if (!scannerRef.current || status !== 'ready') return;
-            try {
-                if (isActive && !isManuallyStopped) {
-                    // Force start capturing
-                    await scannerRef.current.start();
-                } else {
-                    // Force stop capturing
-                    await scannerRef.current.stop();
-                }
-            } catch (err) {
-                console.warn("Toggle camera error:", err);
-            }
-        };
-        toggle();
-    }, [isActive, isManuallyStopped, status]);
+    const handleManualStop = async () => {
+        await cleanupScanner();
+        setStatus('stopped');
+    };
+
+    const handleManualRestart = () => {
+        setInitKey(prev => prev + 1);
+    };
 
     return (
         <div className="barcode-scanner-outer" style={{ width: '100%', height: '50vh', minHeight: '350px', position: 'relative', background: '#000', borderRadius: '16px', overflow: 'hidden' }}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-            {isManuallyStopped && (
-                <div style={{ position: 'absolute', inset: 0, zIndex: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', color: 'white', backdropFilter: 'blur(4px)' }}>
+            {status === 'loading' && isActive && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', color: 'white', zIndex: 10 }}>
+                    <p>Démarrage du scanner...</p>
+                </div>
+            )}
+
+            {status === 'stopped' && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: 'white', zIndex: 12, backdropFilter: 'blur(5px)' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📷</div>
-                    <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>Scanner en pause</p>
+                    <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>Scanner arrêté</p>
                     <button 
-                        onClick={() => setIsManuallyStopped(false)}
-                        style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer' }}
+                        onClick={handleManualRestart}
+                        style={{ padding: '12px 28px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 15px rgba(59,130,246,0.4)' }}
                     >
-                        Redémarrer le scanner
+                        Relancer le scanner
                     </button>
                 </div>
             )}
 
-            {status === 'ready' && !isManuallyStopped && (
+            {status === 'ready' && (
                 <div style={{ position: 'absolute', bottom: '25px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '20px', zIndex: 11 }}>
-                   <button 
-                        onClick={() => setIsManuallyStopped(true)}
-                        style={{ width: '60px', height: '60px', background: 'rgba(239, 68, 68, 0.4)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', color: 'white', fontSize: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="Arrêter"
+                    <button 
+                        onClick={handleManualStop}
+                        style={{ width: '64px', height: '64px', background: 'rgba(239, 68, 68, 0.3)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', color: 'white', fontSize: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                     >🛑</button>
                 </div>
             )}
 
             {status === 'error' && (
-                <div style={{ position: 'absolute', inset: 0, zIndex: 13, background: 'rgba(0,0,0,0.95)', color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px', textAlign: 'center' }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.95)', color: '#ef4444', padding: '30px', textAlign: 'center', zIndex: 13 }}>
                     <span style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</span>
                     <p style={{ marginBottom: '1.5rem' }}>{errorMessage}</p>
-                    <button onClick={() => window.location.reload()} style={{ padding: '10px 20px', background: 'white', color: 'black', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Réessayer</button>
+                    <button 
+                        onClick={handleManualRestart}
+                        style={{ padding: '10px 20px', background: 'white', color: 'black', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >Réessayer</button>
                 </div>
             )}
         </div>
