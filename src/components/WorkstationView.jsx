@@ -2,6 +2,7 @@ import { useState } from 'react';
 import EquipmentCard from './EquipmentCard';
 import { getEquipmentTypeIcon, getEquipmentTypeName } from '../services/csvParser';
 import BarcodeScanner from './BarcodeScanner';
+import EquipmentDetailsModal from './EquipmentDetailsModal';
 import './WorkstationView.css';
 
 export default function WorkstationView({
@@ -16,6 +17,7 @@ export default function WorkstationView({
     const [unexpectedItems, setUnexpectedItems] = useState([]);
     const [showScanner, setShowScanner] = useState(false);
     const [scanError, setScanError] = useState(null);
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
 
     const allItems = [mainEquipment, ...linkedEquipment];
     const progress = (validatedItems.size / allItems.length) * 100;
@@ -136,14 +138,14 @@ export default function WorkstationView({
                         <h3 className="category-title">⭕ Équipements manquants</h3>
                         <div className="linked-list">
                             {allItems.filter(eq => !validatedItems.has(eq.serialNumber)).map(eq => (
-                                <div key={eq.serialNumber} className="linked-item absent" onClick={() => toggleValidation(eq.serialNumber)}>
+                                <div key={eq.serialNumber} className="linked-item absent" onClick={() => setSelectedEquipment(eq)}>
                                     <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
                                     <div className="item-details">
                                         <span className="item-type">{getEquipmentTypeName(eq.type)}</span>
                                         <span className="item-model">{eq.brand} {eq.model}</span>
                                         <span className="item-serial">{eq.serialNumber}</span>
                                     </div>
-                                    <div className="item-check">○</div>
+                                    <div className="item-check" onClick={(e) => { e.stopPropagation(); toggleValidation(eq.serialNumber); }}>○</div>
                                 </div>
                             ))}
                         </div>
@@ -180,14 +182,14 @@ export default function WorkstationView({
                         <h3 className="category-title">✅ Équipements validés</h3>
                         <div className="linked-list">
                             {allItems.filter(eq => validatedItems.has(eq.serialNumber)).map(eq => (
-                                <div key={eq.serialNumber} className="linked-item validated" onClick={() => toggleValidation(eq.serialNumber)}>
+                                <div key={eq.serialNumber} className="linked-item validated" onClick={() => setSelectedEquipment(eq)}>
                                     <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
                                     <div className="item-details">
                                         <span className="item-type">{getEquipmentTypeName(eq.type)}</span>
                                         <span className="item-model">{eq.brand} {eq.model}</span>
                                         <span className="item-serial">{eq.serialNumber}</span>
                                     </div>
-                                    <div className="item-check">✓</div>
+                                    <div className="item-check" onClick={(e) => { e.stopPropagation(); toggleValidation(eq.serialNumber); }}>✓</div>
                                 </div>
                             ))}
                         </div>
@@ -210,6 +212,13 @@ export default function WorkstationView({
                     {isComplete ? '✓ Valider le poste complet' : 'Valider le poste'}
                 </button>
             </div>
+
+            {selectedEquipment && (
+                <EquipmentDetailsModal
+                    equipment={selectedEquipment}
+                    onClose={() => setSelectedEquipment(null)}
+                />
+            )}
         </div >
     );
 }

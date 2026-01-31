@@ -10,6 +10,7 @@ import {
 import BarcodeScanner from '../components/BarcodeScanner';
 import EquipmentCard from '../components/EquipmentCard';
 import WorkstationView from '../components/WorkstationView';
+import EquipmentDetailsModal from '../components/EquipmentDetailsModal';
 import { getEquipmentTypeIcon } from '../services/csvParser';
 import './InventorySession.css';
 
@@ -42,6 +43,7 @@ export default function InventorySession() {
     const [linkedEquipment, setLinkedEquipment] = useState([]);
     const [scanError, setScanError] = useState(null);
     const [viewMode, setViewMode] = useState('scanner'); // scanner, list, stats
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
 
     useEffect(() => {
         const init = async () => {
@@ -304,7 +306,10 @@ export default function InventorySession() {
                     )}
 
                     {lastScanResult && (
-                        <div className={`last-scan ${lastScanResult.type}`}>
+                        <div
+                            className={`last-scan ${lastScanResult.type}`}
+                            onClick={() => lastScanResult.equipment && setSelectedEquipment(lastScanResult.equipment)}
+                        >
                             {lastScanResult.type === 'unknown' ? (
                                 <div className="unknown-scan">
                                     <span className="scan-icon">❓</span>
@@ -332,7 +337,12 @@ export default function InventorySession() {
                                 </h3>
                                 <div className="equipment-list">
                                     {filteredEquipment.filter(e => e.inventoryStatus === 'pending').map(eq => (
-                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact />
+                                        <EquipmentCard
+                                            key={eq.serialNumber}
+                                            equipment={eq}
+                                            compact
+                                            onClick={(e) => setSelectedEquipment(e)}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -344,7 +354,13 @@ export default function InventorySession() {
                                 </h3>
                                 <div className="equipment-list">
                                     {filteredEquipment.filter(e => e.attributionError).map(eq => (
-                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact isHighlighted />
+                                        <EquipmentCard
+                                            key={eq.serialNumber}
+                                            equipment={eq}
+                                            compact
+                                            isHighlighted
+                                            onClick={(e) => setSelectedEquipment(e)}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -356,7 +372,11 @@ export default function InventorySession() {
                                 </h3>
                                 <div className="equipment-list">
                                     {(session.unexpectedScans || []).map((scan, idx) => (
-                                        <div key={idx} className="unexpected-item-card">
+                                        <div
+                                            key={idx}
+                                            className="unexpected-item-card"
+                                            onClick={() => scan.equipment && setSelectedEquipment(scan.equipment)}
+                                        >
                                             {scan.equipment ? (
                                                 <EquipmentCard equipment={scan.equipment} compact />
                                             ) : (
@@ -377,7 +397,12 @@ export default function InventorySession() {
                                 </h3>
                                 <div className="equipment-list">
                                     {filteredEquipment.filter(e => e.inventoryStatus === 'found' && !e.attributionError).map(eq => (
-                                        <EquipmentCard key={eq.serialNumber} equipment={eq} compact />
+                                        <EquipmentCard
+                                            key={eq.serialNumber}
+                                            equipment={eq}
+                                            compact
+                                            onClick={(e) => setSelectedEquipment(e)}
+                                        />
                                     ))}
                                 </div>
                             </div>
@@ -431,6 +456,13 @@ export default function InventorySession() {
                     </div>
                 )}
             </div>
+
+            {selectedEquipment && (
+                <EquipmentDetailsModal
+                    equipment={selectedEquipment}
+                    onClose={() => setSelectedEquipment(null)}
+                />
+            )}
         </div>
     );
 }
