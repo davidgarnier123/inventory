@@ -128,3 +128,5 @@
     font-weight: 600;
     cursor: pointer;
 }
+.detail-value.italic { font-style: italic; color: var(--text-muted); }
+

@@ -33,7 +33,7 @@ export default function WorkstationView({
         setValidatedItems(newValidated);
     };
 
-    const handleScan = (code) => {
+    const handleScan = async (code) => {
         setScanError(null);
         const allItems = [mainEquipment, ...linkedEquipment];
         const found = allItems.find(eq => eq.serialNumber === code);
@@ -46,8 +46,13 @@ export default function WorkstationView({
         } else {
             // Check if it's already in unexpected
             if (!unexpectedItems.find(item => item.code === code)) {
+                // Try to get more info from DB
+                const { getEquipmentBySerial } = await import('../services/database');
+                const dbInfo = await getEquipmentBySerial(code);
+
                 setUnexpectedItems(prev => [...prev, {
                     code,
+                    equipment: dbInfo || null,
                     timestamp: new Date().toISOString()
                 }]);
             }
@@ -158,15 +163,21 @@ export default function WorkstationView({
                         <h3 className="category-title">❓ Matériel imprévu sur ce poste</h3>
                         <div className="linked-list">
                             {unexpectedItems.map((item, idx) => (
-                                <div key={idx} className="linked-item unexpected">
-                                    <div className="item-icon">❓</div>
+                                <div
+                                    key={idx}
+                                    className="linked-item unexpected"
+                                    onClick={() => item.equipment && setSelectedEquipment(item.equipment)}
+                                >
+                                    <div className="item-icon">{item.equipment ? getEquipmentTypeIcon(item.equipment.type) : '❓'}</div>
                                     <div className="item-details">
-                                        <span className="item-type">HORS INVENTAIRE POSTE</span>
-                                        <span className="item-model">{item.code}</span>
+                                        <span className="item-type">{item.equipment ? getEquipmentTypeName(item.equipment.type) : 'HORS INVENTAIRE POSTE'}</span>
+                                        <span className="item-model">{item.equipment ? `${item.equipment.brand} ${item.equipment.model}` : item.code}</span>
+                                        {item.equipment && <span className="item-serial">{item.equipment.serialNumber}</span>}
+                                        {item.equipment && <span className="item-agent" style={{ fontSize: '0.8rem', opacity: 0.7 }}>👤 {item.equipment.agent || 'Sans agent'}</span>}
                                     </div>
                                     <button
                                         className="remove-unexpected"
-                                        onClick={() => setUnexpectedItems(prev => prev.filter((_, i) => i !== idx))}
+                                        onClick={(e) => { e.stopPropagation(); setUnexpectedItems(prev => prev.filter((_, i) => i !== idx)); }}
                                     >
                                         ✕
                                     </button>

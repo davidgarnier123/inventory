@@ -41,6 +41,13 @@ export default function EquipmentDetailsModal({ equipment, onClose }) {
                         </div>
                     )}
 
+                    {equipment.comment && (
+                        <div className="detail-row">
+                            <span className="detail-label">Commentaire</span>
+                            <span className="detail-value italic">{equipment.comment}</span>
+                        </div>
+                    )}
+
                     <div className="detail-row">
                         <span className="detail-label">Dernier scan</span>
                         <span className="detail-value">

@@ -88,11 +88,13 @@ export default function InventorySession() {
                 handleEquipmentValidate(code, 'found', false);
                 return;
             } else {
-                // Unexpected item found on this workstation
+                // Try to find it in DB even if not in this workstation
+                const dbEquipment = await getEquipmentBySerial(code);
                 setLastScanResult({
                     type: 'unknown_at_workstation',
                     code,
-                    message: "Équipement non attendu sur ce poste"
+                    equipment: dbEquipment || null,
+                    message: dbEquipment ? `Trouvé en base : ${dbEquipment.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
                 });
                 return;
             }
@@ -136,6 +138,7 @@ export default function InventorySession() {
 
         const newSession = {
             ...session,
+            id: session.id, // ensure ID is preserved
             scannedItems: [...new Set([...(session.scannedItems || []), code])],
             unexpectedScans: newUnexpected
         };
