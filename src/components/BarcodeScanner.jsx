@@ -55,12 +55,11 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
                 
                 if (isMounted) setStatus('ready');
             } catch (err) {
-                console.error(err);
                 if (isMounted) setStatus('error');
             }
         };
 
-        const timer = setTimeout(init, 200);
+        const timer = setTimeout(init, 100);
 
         return () => {
             isMounted = false;
@@ -69,32 +68,43 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
         };
     }, [initKey, isActive]);
 
-    const handleStop = async () => {
-        await cleanup();
-        setStatus('stopped');
-    };
-
-    const handleRestart = () => {
-        setInitKey(k => k + 1);
+    const handleToggle = async () => {
+        if (status === 'ready') {
+            await cleanup();
+            setStatus('stopped');
+        } else {
+            setInitKey(k => k + 1);
+            setStatus('loading');
+        }
     };
 
     return (
         <div className="barcode-scanner-outer" style={{ width: '100%', height: '50vh', minHeight: '350px', position: 'relative', background: '#000', borderRadius: '16px', overflow: 'hidden' }}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-            {status === 'stopped' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.9)', color: 'white', zIndex: 12 }}>
-                    <button onClick={handleRestart} style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                        Relancer
-                    </button>
-                </div>
-            )}
-
-            {status === 'ready' && (
-                <div style={{ position: 'absolute', bottom: '25px', left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 11 }}>
-                    <button onClick={handleStop} style={{ width: '50px', height: '50px', background: 'rgba(239, 68, 68, 0.4)', border: 'none', borderRadius: '50%', color: 'white', fontSize: '20px', cursor: 'pointer' }}>🛑</button>
-                </div>
-            )}
+            <div style={{ position: 'absolute', bottom: '25px', left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 11 }}>
+                <button 
+                    onClick={handleToggle} 
+                    style={{ 
+                        width: '60px', 
+                        height: '60px', 
+                        background: status === 'ready' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(59, 130, 246, 0.7)', 
+                        backdropFilter: 'blur(8px)',
+                        border: 'none', 
+                        borderRadius: '50%', 
+                        color: 'white', 
+                        fontSize: '24px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    {status === 'ready' ? '🛑' : '📷'}
+                </button>
+            </div>
         </div>
     );
 };
