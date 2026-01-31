@@ -230,10 +230,30 @@
     gap: 4px;
 }
 
+.plan-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
 .plan-card-name {
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.plan-delete-btn {
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.plan-delete-btn:hover {
+    opacity: 1;
 }
 
 .plan-card-meta {
@@ -277,14 +297,49 @@
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.session-item:active {
+    transform: scale(0.98);
+}
+
+.session-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex: 1;
 }
 
 .session-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 50px;
+    height: 50px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
     color: var(--text-primary);
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: center;
 }
 
 .session-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.session-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.session-meta {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
@@ -307,8 +362,39 @@
 }
 
 .session-status.active {
-    background: rgba(99, 102, 241, 0.2);
+    background: var(--primary-glow);
     color: var(--primary);
+    border: 1px solid var(--primary);
+}
+
+.session-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.resume-btn {
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    opacity: 0.5;
+    padding: var(--space-xs);
+}
+
+.delete-btn:hover {
+    opacity: 1;
 }
 
 /* Bottom Navigation */

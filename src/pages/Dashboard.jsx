@@ -68,9 +68,40 @@ export default function Dashboard() {
             state: {
                 selectedServices: plan.services,
                 planId: plan.id,
-                planName: plan.name
+                planName: plan.name,
+                isNewSession: true
             }
         });
+    };
+
+    const resumeSession = (session) => {
+        navigate('/inventory', {
+            state: {
+                sessionId: session.id,
+                selectedServices: session.services,
+                planId: session.planId,
+                planName: session.planName,
+                isResume: true
+            }
+        });
+    };
+
+    const handleDeleteSession = async (e, sessionId) => {
+        e.stopPropagation();
+        if (confirm('Supprimer cette session ?')) {
+            const { deleteSession } = await import('../services/database');
+            await deleteSession(sessionId);
+            loadData();
+        }
+    };
+
+    const handleDeletePlan = async (e, planId) => {
+        e.stopPropagation();
+        if (confirm('Supprimer ce plan d\'inventaire ?')) {
+            const { deletePlan } = await import('../services/database');
+            await deletePlan(planId);
+            loadData();
+        }
     };
 
 
@@ -162,7 +193,15 @@ export default function Dashboard() {
                                     return (
                                         <div key={plan.id} className="plan-card">
                                             <div className="plan-card-info">
-                                                <span className="plan-card-name">{plan.name}</span>
+                                                <div className="plan-card-header">
+                                                    <span className="plan-card-name">{plan.name}</span>
+                                                    <button
+                                                        className="plan-delete-btn"
+                                                        onClick={(e) => handleDeletePlan(e, plan.id)}
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
                                                 <span className="plan-card-meta">
                                                     {planEquipmentCount} équipements • {plan.services.length} services
                                                 </span>
@@ -183,24 +222,40 @@ export default function Dashboard() {
 
                     {stats.recentSessions.length > 0 && (
                         <section className="history-section">
-                            <h2>Historique récent</h2>
+                            <div className="section-header-row">
+                                <h2>Historique récent</h2>
+                            </div>
                             <div className="sessions-list">
                                 {stats.recentSessions.map(session => (
-                                    <div key={session.id} className="session-item">
-                                        <div className="session-date">
-                                            {new Date(session.startDate).toLocaleDateString('fr-FR', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric'
-                                            })}
+                                    <div key={session.id} className="session-item" onClick={() => session.status === 'active' ? resumeSession(session) : null}>
+                                        <div className="session-main">
+                                            <div className="session-date">
+                                                {new Date(session.startDate).toLocaleDateString('fr-FR', {
+                                                    day: 'numeric',
+                                                    month: 'short'
+                                                })}
+                                            </div>
+                                            <div className="session-info">
+                                                <span className="session-title">{session.planName || 'Inventaire Manuel'}</span>
+                                                <div className="session-meta">
+                                                    <span className="session-count">
+                                                        {session.scannedItems?.length || 0} scannés
+                                                    </span>
+                                                    <span className={`session-status ${session.status}`}>
+                                                        {session.status === 'completed' ? 'Terminé' : 'En cours'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="session-info">
-                                            <span className="session-count">
-                                                {session.scannedItems?.length || 0} scannés
-                                            </span>
-                                            <span className={`session-status ${session.status}`}>
-                                                {session.status === 'completed' ? 'Terminé' : 'En cours'}
-                                            </span>
+                                        <div className="session-actions">
+                                            {session.status === 'active' && (
+                                                <button className="resume-btn" onClick={() => resumeSession(session)}>
+                                                    Reprendre
+                                                </button>
+                                            )}
+                                            <button className="delete-btn" onClick={(e) => handleDeleteSession(e, session.id)}>
+                                                🗑️
+                                            </button>
                                         </div>
                                     </div>
                                 ))}

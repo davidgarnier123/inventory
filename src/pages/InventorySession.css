@@ -368,3 +368,33 @@
     min-width: 50px;
     text-align: right;
 }
+.session-actions-top {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.pause-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pause-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.finish-btn {
+    padding: 0.5rem 1rem;
+    background: #10b981;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+

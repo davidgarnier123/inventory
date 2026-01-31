@@ -136,14 +136,90 @@ const BarcodeScanner = ({ onScan, onError, isActive = true }) => {
             />
 
             {status === 'loading' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', zIndex: 10 }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', zIndex: 10, background: 'rgba(0,0,0,0.8)' }}>
                     <div className="loading-spinner" style={{ marginBottom: '10px' }}></div>
                     <p>Initialisation de la caméra...</p>
                 </div>
             )}
 
+            {status === 'ready' && (
+                <div className="scanner-controls" style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '20px', zIndex: 11 }}>
+                    <button
+                        onClick={() => {
+                            if (scannerRef.current) {
+                                const state = scannerRef.current.getHTML5Element().querySelector('.dce-btn-torch')?.classList.contains('dce-btn-torch-on');
+                                scannerRef.current.turnOnFlash().catch(() => {
+                                    // Fallback toggle
+                                    try { scannerRef.current.turnOffFlash(); } catch (e) { }
+                                });
+                            }
+                        }}
+                        style={{
+                            background: 'rgba(255,255,255,0.2)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            borderRadius: '50%',
+                            width: '50px',
+                            height: '50px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '20px',
+                            color: 'white',
+                            cursor: 'pointer'
+                        }}
+                        title="Flash"
+                    >
+                        ⚡
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (scannerRef.current) {
+                                scannerRef.current.stop();
+                                setStatus('stopped');
+                            }
+                        }}
+                        style={{
+                            background: 'rgba(255,0,0,0.3)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,0,0,0.5)',
+                            borderRadius: '50%',
+                            width: '50px',
+                            height: '50px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '20px',
+                            color: 'white',
+                            cursor: 'pointer'
+                        }}
+                        title="Arrêter"
+                    >
+                        🛑
+                    </button>
+                </div>
+            )}
+
+            {status === 'stopped' && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white', zIndex: 10, background: 'rgba(0,0,0,0.8)' }}>
+                    <p>Caméra arrêtée</p>
+                    <button
+                        onClick={() => {
+                            if (scannerRef.current) {
+                                scannerRef.current.start().then(() => setStatus('ready'));
+                            } else {
+                                window.location.reload();
+                            }
+                        }}
+                        style={{ marginTop: '10px', padding: '10px 20px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                    >
+                        Redémarrer
+                    </button>
+                </div>
+            )}
+
             {status === 'error' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#ff4444', padding: '20px', textAlign: 'center', zIndex: 10 }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#ff4444', padding: '20px', textAlign: 'center', zIndex: 10, background: 'rgba(0,0,0,0.8)' }}>
                     <span style={{ fontSize: '2rem' }}>⚠️</span>
                     <p>{errorMessage}</p>
                     <button

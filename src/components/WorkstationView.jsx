@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import EquipmentCard from './EquipmentCard';
 import { getEquipmentTypeIcon, getEquipmentTypeName } from '../services/csvParser';
+import BarcodeScanner from './BarcodeScanner';
 import './WorkstationView.css';
 
 export default function WorkstationView({
@@ -12,6 +13,9 @@ export default function WorkstationView({
 }) {
     const [validatedItems, setValidatedItems] = useState(new Set());
     const [agentMismatch, setAgentMismatch] = useState(false);
+    const [unexpectedItems, setUnexpectedItems] = useState([]);
+    const [showScanner, setShowScanner] = useState(false);
+    const [scanError, setScanError] = useState(null);
 
     const allItems = [mainEquipment, ...linkedEquipment];
     const progress = (validatedItems.size / allItems.length) * 100;
@@ -25,6 +29,28 @@ export default function WorkstationView({
             newValidated.add(serialNumber);
         }
         setValidatedItems(newValidated);
+    };
+
+    const handleScan = (code) => {
+        setScanError(null);
+        const allItems = [mainEquipment, ...linkedEquipment];
+        const found = allItems.find(eq => eq.serialNumber === code);
+
+        if (found) {
+            const newValidated = new Set(validatedItems);
+            newValidated.add(code);
+            setValidatedItems(newValidated);
+            // Visual feedback or sound could go here
+        } else {
+            // Check if it's already in unexpected
+            if (!unexpectedItems.find(item => item.code === code)) {
+                setUnexpectedItems(prev => [...prev, {
+                    code,
+                    timestamp: new Date().toISOString()
+                }]);
+            }
+            setScanError("Équipement non attendu sur ce poste");
+        }
     };
 
     const validateAll = () => {
@@ -47,8 +73,22 @@ export default function WorkstationView({
                 <button className="back-btn" onClick={onClose}>
                     ← Retour
                 </button>
-                <h2>Poste de travail</h2>
+                <h2>Poste de {mainEquipment.agent || 'Travail'}</h2>
+                <button
+                    className={`scan-toggle-btn ${showScanner ? 'active' : ''}`}
+                    onClick={() => setShowScanner(!showScanner)}
+                >
+                    {showScanner ? '❌ Fermer Scanner' : '📷 Scanner'}
+                </button>
             </div>
+
+            {showScanner && (
+                <div className="workstation-scanner-overlay">
+                    <BarcodeScanner onScan={handleScan} onError={setScanError} />
+                    {scanError && <div className="scan-error-msg">{scanError}</div>}
+                    <div className="scanner-hint">Scannez les équipements du poste</div>
+                </div>
+            )}
 
             <div className="workstation-main">
                 <div className="main-equipment">
@@ -120,6 +160,25 @@ export default function WorkstationView({
                         ))
                     )}
                 </div>
+
+                {unexpectedItems.length > 0 && (
+                    <div className="unexpected-section">
+                        <h3>⚠️ Équipements imprévus ({unexpectedItems.length})</h3>
+                        <div className="unexpected-list">
+                            {unexpectedItems.map((item, idx) => (
+                                <div key={idx} className="unexpected-item">
+                                    <span className="item-code">{item.code}</span>
+                                    <button
+                                        className="remove-unexpected"
+                                        onClick={() => setUnexpectedItems(prev => prev.filter((_, i) => i !== idx))}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="workstation-footer">
@@ -137,6 +196,6 @@ export default function WorkstationView({
                     {isComplete ? '✓ Valider le poste complet' : 'Valider le poste'}
                 </button>
             </div>
-        </div>
+        </div >
     );
 }

@@ -21,7 +21,7 @@ export default function InventorySession() {
     const planId = location.state?.planId || null;
 
     const [session, setSession] = useState({
-        id: `session-${Date.now()}`,
+        id: location.state?.sessionId || `session-${Date.now()}`,
         startDate: new Date().toISOString(),
         services: selectedServicePaths,
         planId: planId,
@@ -29,6 +29,8 @@ export default function InventorySession() {
         scannedItems: [],
         status: 'active'
     });
+
+    const [isLoaded, setIsLoaded] = useState(false);
 
 
     const [equipment, setEquipment] = useState([]);
@@ -41,7 +43,18 @@ export default function InventorySession() {
     const [viewMode, setViewMode] = useState('scanner'); // scanner, list, stats
 
     useEffect(() => {
-        loadEquipment();
+        const init = async () => {
+            if (location.state?.isResume && location.state?.sessionId) {
+                const { getSession } = await import('../services/database');
+                const existingSession = await getSession(location.state.sessionId);
+                if (existingSession) {
+                    setSession(existingSession);
+                }
+            }
+            await loadEquipment();
+            setIsLoaded(true);
+        };
+        init();
     }, []);
 
     const loadEquipment = async () => {
@@ -59,6 +72,26 @@ export default function InventorySession() {
     const handleScan = useCallback(async (code, result) => {
         setScanError(null);
 
+        // If workstation view is open, handle scan there
+        if (showWorkstation) {
+            // Check if item is in linked equipment OR is the main equipment
+            const allItems = [showWorkstation, ...linkedEquipment];
+            const foundInWorkstation = allItems.find(eq => eq.serialNumber === code);
+
+            if (foundInWorkstation) {
+                handleEquipmentValidate(code, 'found', false);
+                return;
+            } else {
+                // Unexpected item found on this workstation
+                setLastScanResult({
+                    type: 'unknown_at_workstation',
+                    code,
+                    message: "Équipement non attendu sur ce poste"
+                });
+                return;
+            }
+        }
+
         // Find equipment by serial number
         const found = await getEquipmentBySerial(code);
 
@@ -72,7 +105,7 @@ export default function InventorySession() {
         }
 
         // Check if in selected services
-        const inScope = selectedServicePaths.some(path =>
+        const inScope = (session.services || []).some(path =>
             found.service?.startsWith(path)
         );
 
@@ -88,7 +121,7 @@ export default function InventorySession() {
         // Update session
         const newSession = {
             ...session,
-            scannedItems: [...new Set([...session.scannedItems, code])]
+            scannedItems: [...new Set([...(session.scannedItems || []), code])]
         };
         setSession(newSession);
         await saveSession(newSession);
@@ -109,10 +142,10 @@ export default function InventorySession() {
             if (linked.length > 0) {
                 setLinkedEquipment(linked);
                 setShowWorkstation(updatedEquipment);
-                setScannerActive(false);
+                // We keep scanner active now to allow scanning workstation items
             }
         }
-    }, [session, selectedServicePaths]);
+    }, [session, showWorkstation, linkedEquipment]);
 
     const handleScanError = useCallback((error) => {
         setScanError(error);
@@ -136,7 +169,18 @@ export default function InventorySession() {
         setScannerActive(true);
     };
 
+    const pauseInventory = async () => {
+        const pausedSession = {
+            ...session,
+            status: 'active', // Stays active to be resumed
+            lastUpdated: new Date().toISOString()
+        };
+        await saveSession(pausedSession);
+        navigate('/');
+    };
+
     const finishInventory = async () => {
+        if (!confirm('Terminer cet inventaire ?')) return;
         const finalSession = {
             ...session,
             endDate: new Date().toISOString(),
@@ -183,9 +227,14 @@ export default function InventorySession() {
                     </span>
                 </div>
 
-                <button className="finish-btn" onClick={finishInventory}>
-                    Terminer
-                </button>
+                <div className="session-actions-top">
+                    <button className="pause-btn" onClick={pauseInventory}>
+                        ⏸ Pause
+                    </button>
+                    <button className="finish-btn" onClick={finishInventory}>
+                        Terminer
+                    </button>
+                </div>
             </header>
 
             <div className="progress-section">

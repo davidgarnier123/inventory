@@ -393,45 +393,35 @@ export default function Settings() {
                         </label>
                     </div>
                 </section>
-
-
-                <section className="settings-section">
-                    <h2>ℹ️ À propos</h2>
-                    <div className="about-info">
-                        <p><strong>Inventaire Parc Informatique</strong></p>
-                        <p className="version">Version 1.0.0</p>
-                        <p className="desc">
-                            Application PWA de gestion d'inventaire avec scan de codes-barres Code 128.
-                        </p>
-                    </div>
-                </section>
             </div>
 
-            {showConfirmClear && (
-                <div className="modal-overlay" onClick={() => setShowConfirmClear(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <h3>⚠️ Confirmer la suppression</h3>
-                        <p>
-                            Cette action supprimera définitivement tous les équipements,
-                            services et sessions d'inventaire.
-                        </p>
-                        <div className="modal-actions">
-                            <button
-                                className="modal-btn cancel"
-                                onClick={() => setShowConfirmClear(false)}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                className="modal-btn confirm"
-                                onClick={handleClearData}
-                            >
-                                Supprimer
-                            </button>
+            {
+                showConfirmClear && (
+                    <div className="modal-overlay" onClick={() => setShowConfirmClear(false)}>
+                        <div className="modal" onClick={e => e.stopPropagation()}>
+                            <h3>⚠️ Confirmer la suppression</h3>
+                            <p>
+                                Cette action supprimera définitivement tous les équipements,
+                                services et sessions d'inventaire.
+                            </p>
+                            <div className="modal-actions">
+                                <button
+                                    className="modal-btn cancel"
+                                    onClick={() => setShowConfirmClear(false)}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    className="modal-btn confirm"
+                                    onClick={handleClearData}
+                                >
+                                    Supprimer
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             <nav className="bottom-nav">
                 <button className="nav-btn" onClick={() => navigate('/')}>
@@ -443,6 +433,6 @@ export default function Settings() {
                     <span className="nav-label">Paramètres</span>
                 </button>
             </nav>
-        </div>
+        </div >
     );
 }
