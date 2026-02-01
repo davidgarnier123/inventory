@@ -180,28 +180,36 @@ export default function WorkstationView({
                 )}
 
                 {/* IMPRÉVUS SUR CE POSTE */}
-                {unexpectedScans.filter(s => s.equipment && s.equipment.linkedPcId !== (mainEquipment.equipmentId || mainEquipment.serialNumber)).length > 0 && (
-                    <div className="workstation-category unexpected">
-                        <h3 className="category-title">❓ Matériel imprévu sur ce poste</h3>
-                        <div className="linked-list">
-                            {unexpectedScans.filter(s => s.equipment && s.equipment.linkedPcId !== (mainEquipment.equipmentId || mainEquipment.serialNumber)).map((scan, idx) => (
-                                <div
-                                    key={idx}
-                                    className="linked-item unexpected"
-                                    onClick={() => scan.equipment && setSelectedEquipment(scan.equipment)}
-                                >
-                                    <div className="item-icon">{scan.equipment ? getEquipmentTypeIcon(scan.equipment.type) : '❓'}</div>
-                                    <div className="item-details">
-                                        <span className="item-type">{scan.equipment ? getEquipmentTypeName(scan.equipment.type) : 'HORS INVENTAIRE POSTE'}</span>
-                                        <span className="item-model">{scan.equipment ? `${scan.equipment.brand} ${scan.equipment.model}` : scan.code}</span>
-                                        {scan.equipment && <span className="item-serial">{scan.equipment.serialNumber}</span>}
-                                        {scan.equipment && <span className="item-agent" style={{ fontSize: '0.8rem', opacity: 0.7 }}>👤 {scan.equipment.agent || 'Sans agent'}</span>}
+                {unexpectedScans.filter(s => {
+                    if (!s.equipment) return false;
+                    const wsId = mainEquipment?.equipmentId || mainEquipment?.serialNumber;
+                    return s.equipment.linkedPcId !== wsId;
+                }).length > 0 && (
+                        <div className="workstation-category unexpected">
+                            <h3 className="category-title">❓ Matériel imprévu sur ce poste</h3>
+                            <div className="linked-list">
+                                {unexpectedScans.filter(s => {
+                                    if (!s.equipment) return false;
+                                    const wsId = mainEquipment?.equipmentId || mainEquipment?.serialNumber;
+                                    return s.equipment.linkedPcId !== wsId;
+                                }).map((scan, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="linked-item unexpected"
+                                        onClick={() => scan.equipment && setSelectedEquipment(scan.equipment)}
+                                    >
+                                        <div className="item-icon">{scan.equipment ? getEquipmentTypeIcon(scan.equipment.type) : '❓'}</div>
+                                        <div className="item-details">
+                                            <span className="item-type">{scan.equipment ? getEquipmentTypeName(scan.equipment.type) : 'HORS INVENTAIRE POSTE'}</span>
+                                            <span className="item-model">{scan.equipment ? `${scan.equipment.brand} ${scan.equipment.model}` : scan.code}</span>
+                                            {scan.equipment && <span className="item-serial">{scan.equipment.serialNumber}</span>}
+                                            {scan.equipment && <span className="item-agent" style={{ fontSize: '0.8rem', opacity: 0.7 }}>👤 {scan.equipment.agent || 'Sans agent'}</span>}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
                 {/* PRÉSENTS / SCANNÉS ICI */}
                 {sessionValidated.size > 0 && (

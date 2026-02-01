@@ -39,6 +39,10 @@ export default function InventorySession() {
     const [filteredEquipment, setFilteredEquipment] = useState([]);
     const [scannerActive, setScannerActive] = useState(true);
     const [lastScanResult, setLastScanResult] = useState(null);
+    const [showWorkstation, setShowWorkstation] = useState(null);
+    const [linkedEquipment, setLinkedEquipment] = useState([]);
+    const [scanError, setScanError] = useState(null);
+    const [viewMode, setViewMode] = useState('scanner'); // scanner, list, stats
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [isAdHocMode, setIsAdHocMode] = useState(false);
 
