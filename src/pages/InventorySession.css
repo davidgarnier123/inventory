@@ -399,6 +399,38 @@
     cursor: pointer;
 }
 
+.export-btn {
+    padding: 0.5rem 1rem;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.scanner-controls {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-sm);
+}
+
+.ad-hoc-btn {
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--glass-bg);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-md);
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ad-hoc-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
 
 .list-categories {
     display: flex;

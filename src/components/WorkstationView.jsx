@@ -6,7 +6,7 @@ import EquipmentDetailsModal from './EquipmentDetailsModal';
 import './WorkstationView.css';
 
 export default function WorkstationView({
-    mainEquipment,
+    mainEquipment, // Can be null for "New Ad-hoc Workstation"
     linkedEquipment = [],
     onEquipmentValidate,
     onClose,
@@ -14,38 +14,66 @@ export default function WorkstationView({
     lastScanResult,
     scanError: parentScanError,
     unexpectedScans = [],
+    isAdHoc = false, // True if creating a new post from scratch
+    initialComment = '',
     currentAgent
 }) {
     const [showScanner, setShowScanner] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    const [workstationComment, setWorkstationComment] = useState(initialComment);
 
-    const allItems = [mainEquipment, ...linkedEquipment];
-    // Use validatedItems from main equipment loop (passed as prop or derived)
-    const validatedItems = new Set(allItems.filter(eq => eq.inventoryStatus === 'found').map(eq => eq.serialNumber));
-    const agentMismatch = allItems.some(eq => eq.attributionError);
-    // Unexpected items are handled by parent session's unexpectedScans
+    // Internal state to track what was scanned EXCLUSIVELY during this workstation inventory session
+    const [sessionValidated, setSessionValidated] = useState(new Set());
+    const [adHocItems, setAdHocItems] = useState([]); // For items scanned into a new ad-hoc post
 
-    const isComplete = validatedItems.size === allItems.length;
-    const progress = (validatedItems.size / allItems.length) * 100;
+    const allItems = isAdHoc ? adHocItems : [mainEquipment, ...linkedEquipment].filter(Boolean);
+    const progress = allItems.length > 0 ? (sessionValidated.size / allItems.length) * 100 : 0;
+    const isComplete = allItems.length > 0 && sessionValidated.size === allItems.length;
 
     const toggleValidation = (serialNumber) => {
-        const item = allItems.find(eq => eq.serialNumber === serialNumber);
-        const newStatus = validatedItems.has(serialNumber) ? 'pending' : 'found';
-        onEquipmentValidate(serialNumber, newStatus, agentMismatch);
+        const newValidated = new Set(sessionValidated);
+        if (newValidated.has(serialNumber)) {
+            newValidated.delete(serialNumber);
+        } else {
+            newValidated.add(serialNumber);
+        }
+        setSessionValidated(newValidated);
     };
 
-    const toggleAgentMismatch = (checked) => {
-        allItems.forEach(eq => {
-            onEquipmentValidate(eq.serialNumber, eq.inventoryStatus, checked);
-        });
+    const handleInternalScan = async (code) => {
+        // We use the parent's onScan logic to get the equipment object
+        // but we manage the "validated in this session" locally
+        await onScan(code);
+
+        // The parent will update current search result. We check if it matches something
+        // Note: This is a bit reactive. We'll rely on the fact that if it's found, 
+        // we can identify it in the next render cycle or via a callback.
+        // For simplicity, let's just listen to lastScanResult changes if they match our items
     };
+
+    // Auto-validate if a scan happens while this view is open
+    useEffect(() => {
+        if (lastScanResult?.equipment) {
+            const sn = lastScanResult.equipment.serialNumber;
+            // If it's an ad-hoc post, add it to our list if not already there
+            if (isAdHoc && !adHocItems.find(eq => eq.serialNumber === sn)) {
+                setAdHocItems(prev => [...prev, lastScanResult.equipment]);
+                setSessionValidated(prev => new Set(prev).add(sn));
+            } else if (!isAdHoc && allItems.find(eq => eq.serialNumber === sn)) {
+                setSessionValidated(prev => new Set(prev).add(sn));
+            }
+        }
+    }, [lastScanResult]);
 
     const confirmWorkstation = () => {
-        // Update inventory status for all items
+        // When confirming, we apply the validation to the global session
         allItems.forEach(eq => {
-            const status = validatedItems.has(eq.serialNumber) ? 'found' : 'missing';
-            onEquipmentValidate(eq.serialNumber, status, agentMismatch);
+            const status = sessionValidated.has(eq.serialNumber) ? 'found' : 'missing';
+            onEquipmentValidate(eq.serialNumber, status, false, workstationComment);
         });
+
+        // If ad-hoc, we might need a specific callback to save the "Poste" as a new entity
+        // For now, validating individual items is enough.
         onClose();
     };
 
@@ -55,13 +83,30 @@ export default function WorkstationView({
                 <button className="back-btn" onClick={onClose}>
                     ← Retour
                 </button>
-                <h2>Poste de {mainEquipment.agent || 'Travail'}</h2>
-                <button
-                    className={`scan-toggle-btn ${showScanner ? 'active' : ''}`}
-                    onClick={() => setShowScanner(!showScanner)}
-                >
-                    {showScanner ? '❌ Fermer Scanner' : '📷 Scanner'}
-                </button>
+                <h2>{isAdHoc ? 'Nouveau Poste de Travail' : `Poste de ${mainEquipment.agent || 'Travail'}`}</h2>
+                <div className="header-actions">
+                    <button
+                        className={`scan-toggle-btn ${showScanner ? 'active' : ''}`}
+                        onClick={() => setShowScanner(!showScanner)}
+                    >
+                        {showScanner ? '❌ Fermer' : '📷 Scanner'}
+                    </button>
+                    <button className="confirm-btn-header" onClick={confirmWorkstation}>
+                        Valider
+                    </button>
+                </div>
+            </div>
+
+            <div className="workstation-info-row">
+                <div className="comment-field">
+                    <label>📝 Note / Commentaire pour ce poste</label>
+                    <input
+                        type="text"
+                        placeholder="R.A.S, écran manquant, déménagement..."
+                        value={workstationComment}
+                        onChange={(e) => setWorkstationComment(e.target.value)}
+                    />
+                </div>
             </div>
 
             {showScanner && (
@@ -89,52 +134,37 @@ export default function WorkstationView({
                 </div>
             )}
 
-            <div className="workstation-main">
-                <div className="main-equipment">
-                    <div className="equipment-icon-large">
-                        {getEquipmentTypeIcon(mainEquipment.type)}
+            {!isAdHoc && mainEquipment && (
+                <div className="workstation-main">
+                    <div className="main-equipment">
+                        <div className="equipment-icon-large">
+                            {getEquipmentTypeIcon(mainEquipment.type)}
+                        </div>
+                        <div className="equipment-details">
+                            <span className="equipment-type-label">
+                                {getEquipmentTypeName(mainEquipment.type)}
+                            </span>
+                            <h3>{mainEquipment.brand} {mainEquipment.model}</h3>
+                            <p className="serial">S/N: {mainEquipment.serialNumber}</p>
+                        </div>
                     </div>
-                    <div className="equipment-details">
-                        <span className="equipment-type-label">
-                            {getEquipmentTypeName(mainEquipment.type)}
-                        </span>
-                        <h3>{mainEquipment.brand} {mainEquipment.model}</h3>
-                        <p className="serial">S/N: {mainEquipment.serialNumber}</p>
+
+                    <div className="agent-check">
+                        <div className="agent-info">
+                            <span className="agent-label">Attribué à :</span>
+                            <span className="agent-name">{mainEquipment.agent || 'Non attribué'}</span>
+                        </div>
                     </div>
                 </div>
-
-                <div className="agent-check">
-                    <div className="agent-info">
-                        <span className="agent-label">Attribué à :</span>
-                        <span className="agent-name">{mainEquipment.agent || 'Non attribué'}</span>
-                    </div>
-
-                    {currentAgent && mainEquipment.agent &&
-                        currentAgent.toLowerCase() !== mainEquipment.agent.toLowerCase() && (
-                            <div className="agent-warning">
-                                <span className="warning-icon">⚠️</span>
-                                <span>Agent attendu: {currentAgent}</span>
-                            </div>
-                        )}
-
-                    <label className="agent-mismatch-check">
-                        <input
-                            type="checkbox"
-                            checked={agentMismatch}
-                            onChange={(e) => toggleAgentMismatch(e.target.checked)}
-                        />
-                        <span>Signaler erreur d'attribution</span>
-                    </label>
-                </div>
-            </div>
+            )}
 
             <div className="workstation-categories">
-                {/* ABSENTS */}
-                {allItems.some(eq => !validatedItems.has(eq.serialNumber)) && (
+                {/* ABSENTS (Seulement pour postes existants) */}
+                {!isAdHoc && allItems.some(eq => !sessionValidated.has(eq.serialNumber)) && (
                     <div className="workstation-category absent">
-                        <h3 className="category-title">⭕ Équipements manquants</h3>
+                        <h3 className="category-title">⭕ Équipements non encore scannés</h3>
                         <div className="linked-list">
-                            {allItems.filter(eq => !validatedItems.has(eq.serialNumber)).map(eq => (
+                            {allItems.filter(eq => !sessionValidated.has(eq.serialNumber)).map(eq => (
                                 <div key={eq.serialNumber} className="linked-item absent" onClick={() => setSelectedEquipment(eq)}>
                                     <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
                                     <div className="item-details">
@@ -173,12 +203,12 @@ export default function WorkstationView({
                     </div>
                 )}
 
-                {/* PRÉSENTS */}
-                {validatedItems.size > 0 && (
+                {/* PRÉSENTS / SCANNÉS ICI */}
+                {sessionValidated.size > 0 && (
                     <div className="workstation-category present">
-                        <h3 className="category-title">✅ Équipements validés</h3>
+                        <h3 className="category-title">✅ Validés sur ce poste</h3>
                         <div className="linked-list">
-                            {allItems.filter(eq => validatedItems.has(eq.serialNumber)).map(eq => (
+                            {allItems.filter(eq => sessionValidated.has(eq.serialNumber)).map(eq => (
                                 <div key={eq.serialNumber} className="linked-item validated" onClick={() => setSelectedEquipment(eq)}>
                                     <div className="item-icon">{getEquipmentTypeIcon(eq.type)}</div>
                                     <div className="item-details">
@@ -199,14 +229,14 @@ export default function WorkstationView({
                     <div className="progress-fill" style={{ width: `${progress}%` }}></div>
                 </div>
                 <span className="progress-text">
-                    {validatedItems.size} / {allItems.length} validés
+                    {sessionValidated.size} / {isAdHoc ? '?' : allItems.length} identifiés
                 </span>
 
                 <button
-                    className={`confirm-btn ${isComplete ? 'complete' : ''}`}
+                    className={`confirm-btn ${isComplete || isAdHoc ? 'complete' : ''}`}
                     onClick={confirmWorkstation}
                 >
-                    {isComplete ? '✓ Valider le poste complet' : 'Valider le poste'}
+                    {isAdHoc ? 'Terminer ce Poste' : (isComplete ? '✓ Valider le poste complet' : 'Valider partiellement')}
                 </button>
             </div>
 

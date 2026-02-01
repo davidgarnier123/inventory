@@ -39,11 +39,8 @@ export default function InventorySession() {
     const [filteredEquipment, setFilteredEquipment] = useState([]);
     const [scannerActive, setScannerActive] = useState(true);
     const [lastScanResult, setLastScanResult] = useState(null);
-    const [showWorkstation, setShowWorkstation] = useState(null);
-    const [linkedEquipment, setLinkedEquipment] = useState([]);
-    const [scanError, setScanError] = useState(null);
-    const [viewMode, setViewMode] = useState('scanner'); // scanner, list, stats
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    const [isAdHocMode, setIsAdHocMode] = useState(false);
 
     useEffect(() => {
         const init = async () => {
@@ -185,14 +182,15 @@ export default function InventorySession() {
         setScanError(error);
     }, []);
 
-    const handleEquipmentValidate = async (serialNumber, status, hasError) => {
+    const handleEquipmentValidate = async (serialNumber, status, hasError, comment = '') => {
         const eq = await getEquipmentByIdentifier(serialNumber);
         if (eq) {
             await saveEquipment({
                 ...eq,
                 inventoryStatus: hasError ? 'error' : status,
                 attributionError: hasError,
-                lastScannedAt: new Date().toISOString()
+                lastScannedAt: new Date().toISOString(),
+                comment: comment || eq.comment // Persist the workstation/manual comment
             });
             await loadEquipment();
         }
@@ -200,8 +198,59 @@ export default function InventorySession() {
 
     const closeWorkstation = () => {
         setShowWorkstation(null);
+        setIsAdHocMode(false);
         setLinkedEquipment([]);
         setScannerActive(true);
+    };
+
+    const startAdHocWorkstation = () => {
+        setIsAdHocMode(true);
+        setShowWorkstation({ type: 'workstation', agent: 'Nouveau Poste' }); // Dummy object
+        setLinkedEquipment([]);
+    };
+
+    const exportToCSV = () => {
+        const headers = ['S/N', 'ID', 'Marque', 'Modele', 'Agent', 'Service', 'Statut', 'Commentaire', 'Date Scan'];
+        const dataRows = equipment.map(eq => [
+            eq.serialNumber || '',
+            eq.equipmentId || '',
+            eq.brand || '',
+            eq.model || '',
+            eq.agent || '',
+            eq.service || '',
+            eq.inventoryStatus || 'non-scanné',
+            eq.comment || '',
+            eq.lastScannedAt || ''
+        ]);
+
+        // Add unexpected scans too
+        session.unexpectedScans.forEach(s => {
+            if (s.equipment) {
+                dataRows.push([
+                    s.equipment.serialNumber,
+                    s.equipment.equipmentId,
+                    s.equipment.brand,
+                    s.equipment.model,
+                    s.equipment.agent,
+                    s.equipment.service,
+                    'Hors périmètre',
+                    'Scan imprévu',
+                    s.date
+                ]);
+            } else {
+                dataRows.push([s.code, '', '', '', '', '', 'Inconnu', 'Non trouvé en base', s.date]);
+            }
+        });
+
+        const csvContent = [headers, ...dataRows].map(e => e.join(';')).join('\n');
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `inventaire_${session.planName || 'export'}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const pauseInventory = async () => {
@@ -241,7 +290,7 @@ export default function InventorySession() {
     if (showWorkstation) {
         return (
             <WorkstationView
-                mainEquipment={showWorkstation}
+                mainEquipment={isAdHocMode ? null : showWorkstation}
                 linkedEquipment={linkedEquipment}
                 onEquipmentValidate={handleEquipmentValidate}
                 onClose={closeWorkstation}
@@ -249,6 +298,7 @@ export default function InventorySession() {
                 lastScanResult={lastScanResult}
                 scanError={scanError}
                 unexpectedScans={session.unexpectedScans || []}
+                isAdHoc={isAdHocMode}
             />
         );
     }
@@ -267,6 +317,9 @@ export default function InventorySession() {
                 </div>
 
                 <div className="session-actions-top">
+                    <button className="export-btn" onClick={exportToCSV}>
+                        📥 Exporter
+                    </button>
                     <button className="pause-btn" onClick={pauseInventory}>
                         ⏸ Pause
                     </button>
@@ -319,6 +372,12 @@ export default function InventorySession() {
                         onError={handleScanError}
                         isActive={scannerActive && viewMode === 'scanner'}
                     />
+
+                    <div className="scanner-controls">
+                        <button className="ad-hoc-btn" onClick={startAdHocWorkstation}>
+                            🆕 Créer un Poste
+                        </button>
+                    </div>
 
                     {scanError && (
                         <div className="scan-error">

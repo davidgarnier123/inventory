@@ -14,6 +14,21 @@
     border-bottom: 1px solid var(--glass-border);
 }
 
+.header-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.confirm-btn-header {
+    padding: var(--space-xs) var(--space-md);
+    background: var(--success);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 .back-btn {
     padding: var(--space-xs) var(--space-sm);
     background: transparent;
@@ -333,10 +348,11 @@
 .confirm-btn.complete:hover {
     background: #059669;
 }
+
 .workstation-scanner-overlay {
     background: #000;
     padding: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -385,8 +401,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 4px 8px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
 }
 
@@ -436,3 +452,34 @@
     letter-spacing: 0.05em;
 }
 
+/* Workstation Info row (Comment) */
+.workstation-info-row {
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.comment-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.comment-field label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.comment-field input {
+    padding: var(--space-sm);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.comment-field input:focus {
+    border-color: var(--primary);
+    outline: none;
+}
