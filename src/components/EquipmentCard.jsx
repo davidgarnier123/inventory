@@ -6,7 +6,8 @@ export default function EquipmentCard({
     onClick,
     showStatus = true,
     compact = false,
-    isHighlighted = false
+    isHighlighted = false,
+    showAgent = false
 }) {
     const statusClasses = {
         pending: 'status-pending',
@@ -53,7 +54,7 @@ export default function EquipmentCard({
                     <span className="serial-value">{equipment.serialNumber}</span>
                 </div>
 
-                {!compact && (
+                {(showAgent || !compact) && (
                     <>
                         <div className="card-agent">
                             <span className="agent-icon">👤</span>
@@ -63,7 +64,7 @@ export default function EquipmentCard({
                         {equipment.linkedPcId && (
                             <div className="card-linked">
                                 <span className="linked-icon">🔗</span>
-                                <span className="linked-label">Lié au PC:</span>
+                                <span className="linked-label">Poste:</span>
                                 <span className="linked-value">{equipment.linkedPcId}</span>
                             </div>
                         )}

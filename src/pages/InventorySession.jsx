@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
     getAllEquipment,
     getEquipmentBySerial,
+    getEquipmentByIdentifier,
     getEquipmentByLinkedPc,
     saveEquipment,
     saveSession
@@ -78,30 +79,58 @@ export default function InventorySession() {
     const handleScan = useCallback(async (code, result) => {
         setScanError(null);
 
+        // Check for duplicates first
+        if (session.scannedItems?.includes(code)) {
+            const existingInUnexpected = session.unexpectedScans?.find(s => s.code === code);
+            const found = await getEquipmentByIdentifier(code);
+
+            setLastScanResult({
+                type: 'already_scanned',
+                code,
+                equipment: found || existingInUnexpected?.equipment || null,
+                message: 'Équipement déjà scanné dans cette session'
+            });
+            return;
+        }
+
         // If workstation view is open, handle scan there
         if (showWorkstation) {
             // Check if item is in linked equipment OR is the main equipment
             const allItems = [showWorkstation, ...linkedEquipment];
-            const foundInWorkstation = allItems.find(eq => eq.serialNumber === code);
+            const foundInWorkstation = allItems.find(eq => eq.serialNumber === code || eq.equipmentId === code);
 
             if (foundInWorkstation) {
-                handleEquipmentValidate(code, 'found', false);
+                handleEquipmentValidate(foundInWorkstation.serialNumber, 'found', false);
+                // Also update session scannedItems to avoid global duplicates
+                const newSession = {
+                    ...session,
+                    scannedItems: [...new Set([...(session.scannedItems || []), code])]
+                };
+                setSession(newSession);
+                await saveSession(newSession);
                 return;
             } else {
                 // Try to find it in DB even if not in this workstation
-                const dbEquipment = await getEquipmentBySerial(code);
+                const dbEquipment = await getEquipmentByIdentifier(code);
                 setLastScanResult({
                     type: 'unknown_at_workstation',
                     code,
                     equipment: dbEquipment || null,
                     message: dbEquipment ? `Trouvé en base : ${dbEquipment.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
                 });
+
+                if (dbEquipment) {
+                    // It's a valid equipment, just not on this workstation
+                    // Move to global scan handling if we want to allow it?
+                    // For now, only handle it if confirmed. 
+                    // But we should at least mark it as scanned globally.
+                }
                 return;
             }
         }
 
-        // Find equipment by serial number
-        const found = await getEquipmentBySerial(code);
+        // Find equipment by serial number or ID
+        const found = await getEquipmentByIdentifier(code);
 
         if (!found) {
             setLastScanResult({
@@ -109,13 +138,17 @@ export default function InventorySession() {
                 code,
                 message: 'Équipement non trouvé dans la base'
             });
-            // Track unknown item
-            const newSession = {
-                ...session,
-                unexpectedScans: [...(session.unexpectedScans || []), { code, type: 'unknown', date: new Date().toISOString() }]
-            };
-            setSession(newSession);
-            await saveSession(newSession);
+
+            // Track unknown item if not already tracked
+            if (!(session.unexpectedScans || []).some(s => s.code === code)) {
+                const newSession = {
+                    ...session,
+                    scannedItems: [...new Set([...(session.scannedItems || []), code])],
+                    unexpectedScans: [...(session.unexpectedScans || []), { code, type: 'unknown', date: new Date().toISOString() }]
+                };
+                setSession(newSession);
+                await saveSession(newSession);
+            }
             return;
         }
 
@@ -134,12 +167,17 @@ export default function InventorySession() {
         await saveEquipment(updatedEquipment);
 
         // Update session
-        const newUnexpected = !inScope ? [...(session.unexpectedScans || []), { code, type: 'outOfScope', equipment: updatedEquipment, date: new Date().toISOString() }] : (session.unexpectedScans || []);
+        // Check if already in unexpected to avoid duplicates
+        const isAlreadyUnexpected = (session.unexpectedScans || []).some(s => s.code === code || (s.equipment && s.equipment.serialNumber === found.serialNumber));
+
+        const newUnexpected = (!inScope && !isAlreadyUnexpected)
+            ? [...(session.unexpectedScans || []), { code, type: 'outOfScope', equipment: updatedEquipment, date: new Date().toISOString() }]
+            : (session.unexpectedScans || []);
 
         const newSession = {
             ...session,
             id: session.id, // ensure ID is preserved
-            scannedItems: [...new Set([...(session.scannedItems || []), code])],
+            scannedItems: [...new Set([...(session.scannedItems || []), code, found.serialNumber, found.equipmentId].filter(Boolean))],
             unexpectedScans: newUnexpected
         };
         setSession(newSession);
@@ -161,7 +199,6 @@ export default function InventorySession() {
             if (linked.length > 0) {
                 setLinkedEquipment(linked);
                 setShowWorkstation(updatedEquipment);
-                // We keep scanner active now to allow scanning workstation items
             }
         }
     }, [session, showWorkstation, linkedEquipment]);
@@ -324,8 +361,47 @@ export default function InventorySession() {
                                     equipment={lastScanResult.equipment}
                                     compact
                                     isHighlighted
+                                    showAgent={true}
                                 />
                             )}
+                        </div>
+                    )}
+
+                    {/* RECENT SCANS LIST */}
+                    {session.scannedItems?.length > 0 && (
+                        <div className="recent-scans-container">
+                            <h3 className="section-title">Derniers scans ({session.scannedItems.length})</h3>
+                            <div className="recent-scans-list">
+                                {[...session.scannedItems].reverse().map(code => {
+                                    // Find if it was an unexpected scan with equipment
+                                    const unexpected = session.unexpectedScans?.find(s => s.code === code);
+                                    // Find it in filteredEquipment or equipment
+                                    const inEquipment = equipment.find(e => e.serialNumber === code || e.equipmentId === code);
+
+                                    const displayEquipment = inEquipment || unexpected?.equipment;
+
+                                    return (
+                                        <div key={code} className="history-item">
+                                            {displayEquipment ? (
+                                                <EquipmentCard
+                                                    equipment={displayEquipment}
+                                                    compact
+                                                    showAgent={true}
+                                                    onClick={() => setSelectedEquipment(displayEquipment)}
+                                                />
+                                            ) : (
+                                                <div className="history-unknown-card">
+                                                    <span className="icon">❓</span>
+                                                    <div className="details">
+                                                        <span className="code">{code}</span>
+                                                        <span className="label">Code inconnu</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -381,11 +457,15 @@ export default function InventorySession() {
                                             onClick={() => scan.equipment && setSelectedEquipment(scan.equipment)}
                                         >
                                             {scan.equipment ? (
-                                                <EquipmentCard equipment={scan.equipment} compact />
+                                                <EquipmentCard
+                                                    equipment={scan.equipment}
+                                                    compact
+                                                    showAgent={true}
+                                                />
                                             ) : (
                                                 <div className="unknown-scanned-code">
                                                     <span className="code">{scan.code}</span>
-                                                    <span className="label">Code inconnu</span>
+                                                    <span className="label">Code inconnu (non trouvé en base)</span>
                                                 </div>
                                             )}
                                         </div>

@@ -20,6 +20,7 @@ async function getDB() {
                 equipmentStore.createIndex('agent', 'agent');
                 equipmentStore.createIndex('type', 'type');
                 equipmentStore.createIndex('linkedPcId', 'linkedPcId');
+                equipmentStore.createIndex('equipmentId', 'equipmentId');
             }
 
             // Services store
@@ -52,6 +53,17 @@ export async function getAllEquipment() {
 export async function getEquipmentBySerial(serialNumber) {
     const db = await getDB();
     return db.get(STORES.EQUIPMENT, serialNumber);
+}
+
+export async function getEquipmentByIdentifier(code) {
+    const db = await getDB();
+    // Try by serial first
+    let equipment = await db.get(STORES.EQUIPMENT, code);
+    if (equipment) return equipment;
+
+    // Then try by equipmentId index
+    equipment = await db.getFromIndex(STORES.EQUIPMENT, 'equipmentId', code);
+    return equipment;
 }
 
 export async function getEquipmentByService(servicePath) {

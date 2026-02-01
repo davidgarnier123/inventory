@@ -368,6 +368,7 @@
     min-width: 50px;
     text-align: right;
 }
+
 .session-actions-top {
     display: flex;
     gap: 0.5rem;
@@ -375,8 +376,8 @@
 
 .pause-btn {
     padding: 0.5rem 1rem;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 8px;
     color: white;
     font-weight: 600;
@@ -385,7 +386,7 @@
 }
 
 .pause-btn:hover {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .finish-btn {
@@ -452,3 +453,77 @@
     color: var(--text-muted);
 }
 
+/* Recent Scans History */
+.recent-scans-container {
+    margin-top: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    flex: 1;
+    min-height: 0;
+}
+
+.section-title {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 var(--space-xs);
+}
+
+.recent-scans-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    overflow-y: auto;
+    padding: var(--space-xs);
+    mask-image: linear-gradient(to bottom, black 90%, transparent);
+}
+
+.history-item {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.history-unknown-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+}
+
+.history-unknown-card .icon {
+    font-size: 1.5rem;
+    opacity: 0.5;
+}
+
+.history-unknown-card .details {
+    display: flex;
+    flex-direction: column;
+}
+
+.history-unknown-card .code {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.history-unknown-card .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}

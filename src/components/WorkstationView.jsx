@@ -36,19 +36,19 @@ export default function WorkstationView({
     const handleScan = async (code) => {
         setScanError(null);
         const allItems = [mainEquipment, ...linkedEquipment];
-        const found = allItems.find(eq => eq.serialNumber === code);
+        const found = allItems.find(eq => eq.serialNumber === code || eq.equipmentId === code);
 
         if (found) {
             const newValidated = new Set(validatedItems);
-            newValidated.add(code);
+            newValidated.add(found.serialNumber);
             setValidatedItems(newValidated);
             // Visual feedback or sound could go here
         } else {
             // Check if it's already in unexpected
             if (!unexpectedItems.find(item => item.code === code)) {
                 // Try to get more info from DB
-                const { getEquipmentBySerial } = await import('../services/database');
-                const dbInfo = await getEquipmentBySerial(code);
+                const { getEquipmentByIdentifier } = await import('../services/database');
+                const dbInfo = await getEquipmentByIdentifier(code);
 
                 setUnexpectedItems(prev => [...prev, {
                     code,
