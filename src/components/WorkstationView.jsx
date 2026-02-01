@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import EquipmentCard from './EquipmentCard';
 import { getEquipmentTypeIcon, getEquipmentTypeName } from '../services/csvParser';
 import BarcodeScanner from './BarcodeScanner';
@@ -83,7 +83,7 @@ export default function WorkstationView({
                 <button className="back-btn" onClick={onClose}>
                     ← Retour
                 </button>
-                <h2>{isAdHoc ? 'Nouveau Poste de Travail' : `Poste de ${mainEquipment.agent || 'Travail'}`}</h2>
+                <h2>{isAdHoc ? 'Nouveau Poste de Travail' : `Poste de ${mainEquipment?.agent || 'Travail'}`}</h2>
                 <div className="header-actions">
                     <button
                         className={`scan-toggle-btn ${showScanner ? 'active' : ''}`}
