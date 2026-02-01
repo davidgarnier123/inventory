@@ -80,7 +80,16 @@ export default function InventorySession() {
         setScanError(null);
 
         // Find equipment by serial number or ID or any other identifier
-        const found = await getEquipmentByIdentifier(code);
+        let found = await getEquipmentByIdentifier(code);
+
+        // WORKSTATION AUTO-MAP:
+        // If we scannned something that IS linked to a PC, find the PC to open the full workstation view
+        if (found && found.linkedPcId && found.type !== 'pc') {
+            const parentPc = await getEquipmentByIdentifier(found.linkedPcId);
+            if (parentPc) {
+                found = parentPc; // Redirect to PC workstation
+            }
+        }
 
         // Check for duplicates by Serial Number (the unique reference)
         if (found && session.scannedItems?.includes(found.serialNumber)) {
@@ -142,7 +151,7 @@ export default function InventorySession() {
             setLastScanResult({
                 type: 'unknown',
                 code,
-                message: 'Équipement non trouvé dans la base (vérifiez tous les champs)'
+                message: 'Identifiant non trouvé (S/N ou ID 7 chiffres)'
             });
 
             // Track unknown item if not already tracked
@@ -192,7 +201,7 @@ export default function InventorySession() {
         setLastScanResult({
             type: inScope ? 'success' : 'outOfScope',
             equipment: updatedEquipment,
-            message: inScope ? 'Équipement trouvé' : 'Hors périmètre'
+            message: inScope ? 'Équipement identifié' : 'Hors périmètre'
         });
 
         // Refresh list
