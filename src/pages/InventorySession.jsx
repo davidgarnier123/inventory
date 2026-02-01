@@ -79,16 +79,23 @@ export default function InventorySession() {
     const handleScan = useCallback(async (code, result) => {
         setScanError(null);
 
-        // Check for duplicates first
-        if (session.scannedItems?.includes(code)) {
-            const existingInUnexpected = session.unexpectedScans?.find(s => s.code === code);
-            const found = await getEquipmentByIdentifier(code);
+        // Find equipment by serial number or ID or any other identifier
+        const found = await getEquipmentByIdentifier(code);
 
+        // Check for duplicates by Serial Number (the unique reference)
+        if (found && session.scannedItems?.includes(found.serialNumber)) {
             setLastScanResult({
                 type: 'already_scanned',
                 code,
-                equipment: found || existingInUnexpected?.equipment || null,
+                equipment: found,
                 message: 'Équipement déjà scanné dans cette session'
+            });
+            return;
+        } else if (!found && session.scannedItems?.includes(code)) {
+            setLastScanResult({
+                type: 'already_scanned',
+                code,
+                message: 'Code inconnu déjà scanné'
             });
             return;
         }
@@ -97,46 +104,45 @@ export default function InventorySession() {
         if (showWorkstation) {
             // Check if item is in linked equipment OR is the main equipment
             const allItems = [showWorkstation, ...linkedEquipment];
-            const foundInWorkstation = allItems.find(eq => eq.serialNumber === code || eq.equipmentId === code);
+            // found already search in ID, Serial, etc. So use found.serialNumber if exists
+            const workstationMatch = found ? allItems.find(eq => eq.serialNumber === found.serialNumber) : null;
 
-            if (foundInWorkstation) {
-                handleEquipmentValidate(foundInWorkstation.serialNumber, 'found', false);
+            if (workstationMatch) {
+                handleEquipmentValidate(workstationMatch.serialNumber, 'found', false);
                 // Also update session scannedItems to avoid global duplicates
                 const newSession = {
                     ...session,
-                    scannedItems: [...new Set([...(session.scannedItems || []), code])]
+                    scannedItems: [...new Set([...(session.scannedItems || []), workstationMatch.serialNumber])]
                 };
                 setSession(newSession);
                 await saveSession(newSession);
                 return;
             } else {
-                // Try to find it in DB even if not in this workstation
-                const dbEquipment = await getEquipmentByIdentifier(code);
                 setLastScanResult({
                     type: 'unknown_at_workstation',
                     code,
-                    equipment: dbEquipment || null,
-                    message: dbEquipment ? `Trouvé en base : ${dbEquipment.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
+                    equipment: found || null,
+                    message: found ? `Trouvé en base : ${found.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
                 });
 
-                if (dbEquipment) {
-                    // It's a valid equipment, just not on this workstation
-                    // Move to global scan handling if we want to allow it?
-                    // For now, only handle it if confirmed. 
-                    // But we should at least mark it as scanned globally.
+                if (found) {
+                    // It's a valid equipment, mark as scanned globally anyway
+                    const newSession = {
+                        ...session,
+                        scannedItems: [...new Set([...(session.scannedItems || []), found.serialNumber])]
+                    };
+                    setSession(newSession);
+                    await saveSession(newSession);
                 }
                 return;
             }
         }
 
-        // Find equipment by serial number or ID
-        const found = await getEquipmentByIdentifier(code);
-
         if (!found) {
             setLastScanResult({
                 type: 'unknown',
                 code,
-                message: 'Équipement non trouvé dans la base'
+                message: 'Équipement non trouvé dans la base (vérifiez tous les champs)'
             });
 
             // Track unknown item if not already tracked
@@ -177,7 +183,7 @@ export default function InventorySession() {
         const newSession = {
             ...session,
             id: session.id, // ensure ID is preserved
-            scannedItems: [...new Set([...(session.scannedItems || []), code, found.serialNumber, found.equipmentId].filter(Boolean))],
+            scannedItems: [...new Set([...(session.scannedItems || []), found.serialNumber])],
             unexpectedScans: newUnexpected
         };
         setSession(newSession);
@@ -194,7 +200,6 @@ export default function InventorySession() {
 
         // If PC or Dock, offer workstation sub-inventory
         if (found.type === 'pc' || found.type === 'dock') {
-            // Find linked equipment
             const linked = await getEquipmentByLinkedPc(found.equipmentId || found.serialNumber);
             if (linked.length > 0) {
                 setLinkedEquipment(linked);

@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'inventory-db';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 
 const STORES = {
     EQUIPMENT: 'equipment',
@@ -50,20 +50,36 @@ export async function getAllEquipment() {
     return db.getAll(STORES.EQUIPMENT);
 }
 
-export async function getEquipmentBySerial(serialNumber) {
-    const db = await getDB();
-    return db.get(STORES.EQUIPMENT, serialNumber);
-}
-
 export async function getEquipmentByIdentifier(code) {
+    if (!code) return null;
     const db = await getDB();
-    // Try by serial first
-    let equipment = await db.get(STORES.EQUIPMENT, code);
+    const normalizedCode = String(code).trim();
+    const upperCode = normalizedCode.toUpperCase();
+
+    // 1. Precise match by Serial (Primary Key)
+    let equipment = await db.get(STORES.EQUIPMENT, normalizedCode);
+    if (!equipment) equipment = await db.get(STORES.EQUIPMENT, upperCode);
     if (equipment) return equipment;
 
-    // Then try by equipmentId index
-    equipment = await db.getFromIndex(STORES.EQUIPMENT, 'equipmentId', code);
-    return equipment;
+    // 2. Precise match by index: equipmentId (the 7-digit ID)
+    try {
+        equipment = await db.getFromIndex(STORES.EQUIPMENT, 'equipmentId', normalizedCode);
+        if (!equipment) equipment = await db.getFromIndex(STORES.EQUIPMENT, 'equipmentId', upperCode);
+        if (equipment) return equipment;
+    } catch (e) {
+        console.warn("Index equipmentId failed", e);
+    }
+
+    // 3. Fail-safe: Full scan of the database (handles potential type/index issues)
+    // For small/medium DBs this is very fast and 100% reliable
+    const all = await db.getAll(STORES.EQUIPMENT);
+    return all.find(eq =>
+        (eq.serialNumber && eq.serialNumber.trim().toUpperCase() === upperCode) ||
+        (eq.equipmentId && String(eq.equipmentId).trim().toUpperCase() === upperCode) ||
+        (eq.info && String(eq.info).trim().toUpperCase() === upperCode) ||
+        (eq.macAddress && String(eq.macAddress).trim().toUpperCase() === upperCode) ||
+        (eq.linkedPcId && String(eq.linkedPcId).trim().toUpperCase() === upperCode)
+    );
 }
 
 export async function getEquipmentByService(servicePath) {
