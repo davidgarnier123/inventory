@@ -9,10 +9,12 @@ export default function WorkstationView({
     mainEquipment,
     linkedEquipment = [],
     onEquipmentValidate,
+    onClose,
     onScan,
     lastScanResult,
     scanError: parentScanError,
-    unexpectedScans = []
+    unexpectedScans = [],
+    currentAgent
 }) {
     const [showScanner, setShowScanner] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);

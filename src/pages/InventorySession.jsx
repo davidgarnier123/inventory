@@ -78,119 +78,98 @@ export default function InventorySession() {
     const handleScan = useCallback(async (code, result) => {
         setScanError(null);
 
-        // Find equipment in DB (Exhaustive search SN, ID, Comment, Info, etc.)
+        // 1. Identify what was scanned (Exhaustive DB search)
         const foundInDb = await getEquipmentByIdentifier(code);
 
-        // Define what we found (could be redirected to workstation later)
         let processedEquipment = foundInDb;
         let isRedirection = false;
-        let parentPc = null; // To store parent PC if redirection occurs
+        let parentPc = null;
 
-        // Auto-Workstation logic (if peripheral -> find PC)
+        // Auto-Workstation logic: if peripheral linked to a PC, redirect to that PC
         if (foundInDb && foundInDb.linkedPcId && foundInDb.type !== 'pc') {
             parentPc = await getEquipmentByIdentifier(foundInDb.linkedPcId);
             if (parentPc) {
-                // We keep track that we found the peripheral, but we'll show the PC workstation
                 processedEquipment = parentPc;
                 isRedirection = true;
             }
         }
 
-        // Functional update to avoid race conditions
-        setSession(current => {
-            const uniqueId = foundInDb ? foundInDb.serialNumber : code;
+        // 2. Local variables for state calculation to avoid side-effects in setter
+        const uniqueId = foundInDb ? foundInDb.serialNumber : code;
+        let scanType = 'success';
+        let scanMessage = '';
 
+        // 3. Update Session state
+        setSession(current => {
             // Check for duplicates
             if (current.scannedItems?.includes(uniqueId)) {
-                setLastScanResult({
-                    type: 'already_scanned',
-                    code,
-                    equipment: foundInDb,
-                    message: 'Déjà scanné'
-                });
+                scanType = 'already_scanned';
+                scanMessage = 'Déjà scanné';
                 return current;
             }
 
-            // If workstation view is open, handle scan there
+            // Handle Workstation specific scan within session
             if (showWorkstation) {
-                const allItems = [showWorkstation, ...linkedEquipment];
-                const workstationMatch = foundInDb ? allItems.find(eq => eq.serialNumber === foundInDb.serialNumber) : null;
+                const allWorkstationItems = [showWorkstation, ...linkedEquipment];
+                const workstationMatch = foundInDb ? allWorkstationItems.find(eq => eq.serialNumber === foundInDb.serialNumber) : null;
 
                 if (workstationMatch) {
-                    handleEquipmentValidate(workstationMatch.serialNumber, 'found', false);
-                    setLastScanResult({
-                        type: 'success',
-                        equipment: workstationMatch,
-                        message: 'Équipement validé sur le poste'
-                    });
-                    const newScanned = [...new Set([...(current.scannedItems || []), workstationMatch.serialNumber])];
-                    const updated = { ...current, scannedItems: newScanned };
-                    saveSession(updated);
-                    return updated;
+                    scanType = 'success';
+                    scanMessage = 'Équipement validé sur le poste';
                 } else {
-                    setLastScanResult({
-                        type: 'unknown_at_workstation',
-                        code,
-                        equipment: foundInDb || null,
-                        message: foundInDb ? `Trouvé en base : ${foundInDb.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
-                    });
-                    // If it's a valid equipment, mark as scanned globally anyway
-                    if (foundInDb) {
-                        const newScanned = [...new Set([...(current.scannedItems || []), foundInDb.serialNumber])];
-                        const updated = { ...current, scannedItems: newScanned };
-                        saveSession(updated);
-                        return updated;
-                    }
-                    return current;
+                    scanType = foundInDb ? 'unknown_at_workstation' : 'unknown';
+                    scanMessage = foundInDb ? `Trouvé en base : ${foundInDb.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste";
                 }
-            }
-
-            // Update session data
-            const newScanned = [...new Set([...(current.scannedItems || []), uniqueId])];
-            let newUnexpected = current.unexpectedScans || [];
-
-            if (!foundInDb) {
-                // Truly unknown
-                setLastScanResult({
-                    type: 'unknown',
-                    code,
-                    message: 'Non trouvé en base (S/N, ID, Commentaire...)'
-                });
-                newUnexpected = [...newUnexpected, { code, type: 'unknown', date: new Date().toISOString() }];
+            } else if (!foundInDb) {
+                scanType = 'unknown';
+                scanMessage = 'Non trouvé en base (S/N, ID...)';
             } else {
-                // Check scope
                 const inScope = (current.services || []).some(path => foundInDb.service?.startsWith(path));
-
-                if (!inScope) {
-                    newUnexpected = [...newUnexpected, { code, type: 'outOfScope', equipment: foundInDb, date: new Date().toISOString() }];
-                }
-
-                setLastScanResult({
-                    type: inScope ? 'success' : 'outOfScope',
-                    equipment: foundInDb,
-                    message: isRedirection ? `Lié au poste de ${parentPc.agent || 'inconnu'}` : (inScope ? 'Trouvé' : 'Hors périmètre')
-                });
+                scanType = inScope ? 'success' : 'outOfScope';
+                scanMessage = isRedirection ? `Lié au poste de ${parentPc.agent || 'inconnu'}` : (inScope ? 'Trouvé' : 'Hors périmètre');
             }
 
-            const updated = { ...current, scannedItems: newScanned, unexpectedScans: newUnexpected };
-            saveSession(updated); // Background save
-            return updated;
+            // Construct new session state
+            const newScanned = [...new Set([...(current.scannedItems || []), uniqueId])];
+            let newUnexpected = [...(current.unexpectedScans || [])];
+
+            if (scanType === 'unknown' || scanType === 'unknown_at_workstation' || scanType === 'outOfScope') {
+                // Avoid redundant unexpected scans
+                if (!newUnexpected.some(s => s.code === code)) {
+                    newUnexpected.push({ code, type: scanType, equipment: foundInDb || null, date: new Date().toISOString() });
+                }
+            }
+
+            const updatedSession = { ...current, scannedItems: newScanned, unexpectedScans: newUnexpected };
+
+            // Queue async save (non-blocking)
+            saveSession(updatedSession).catch(console.error);
+
+            return updatedSession;
         });
 
-        // Final UI actions (Workstation view etc)
-        if (processedEquipment) {
-            // Update DB status for the actual scanned item
-            if (foundInDb) {
-                const inScope = (session.services || []).some(path => foundInDb.service?.startsWith(path));
-                await saveEquipment({
-                    ...foundInDb,
-                    inventoryStatus: inScope ? 'found' : 'error',
-                    lastScannedAt: new Date().toISOString()
-                });
-                await loadEquipment();
-            }
+        // 4. Handle Side Effects (Database updates & UI state)
+        // Set result for UI feedback
+        setLastScanResult({
+            type: scanType,
+            code,
+            equipment: foundInDb,
+            message: scanMessage
+        });
 
-            // If it's a workstation core (PC or Dock after redirection if needed)
+        if (foundInDb) {
+            // Update individual equipment inventory status in DB
+            const inScope = (session.services || []).some(path => foundInDb.service?.startsWith(path));
+            await saveEquipment({
+                ...foundInDb,
+                inventoryStatus: inScope ? 'found' : 'error',
+                lastScannedAt: new Date().toISOString()
+            });
+            await loadEquipment();
+        }
+
+        // If we found a workstation core (PC or Dock), and not yet in workstation view, open it
+        if (processedEquipment && !showWorkstation) {
             if (processedEquipment.type === 'pc' || processedEquipment.type === 'dock') {
                 const linked = await getEquipmentByLinkedPc(processedEquipment.equipmentId || processedEquipment.serialNumber);
                 if (linked.length > 0) {
@@ -199,7 +178,8 @@ export default function InventorySession() {
                 }
             }
         }
-    }, [session.services, session.id, showWorkstation, linkedEquipment]); // Minimize dependencies
+    }, [session.services, session.id, showWorkstation, linkedEquipment]);
+    // Minimize dependencies
 
     const handleScanError = useCallback((error) => {
         setScanError(error);
