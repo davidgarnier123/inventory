@@ -9,60 +9,33 @@ export default function WorkstationView({
     mainEquipment,
     linkedEquipment = [],
     onEquipmentValidate,
-    onClose,
-    currentAgent
+    onScan,
+    lastScanResult,
+    scanError: parentScanError,
+    unexpectedScans = []
 }) {
-    const [validatedItems, setValidatedItems] = useState(new Set());
-    const [agentMismatch, setAgentMismatch] = useState(false);
-    const [unexpectedItems, setUnexpectedItems] = useState([]);
     const [showScanner, setShowScanner] = useState(false);
-    const [scanError, setScanError] = useState(null);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
 
     const allItems = [mainEquipment, ...linkedEquipment];
-    const progress = (validatedItems.size / allItems.length) * 100;
+    // Use validatedItems from main equipment loop (passed as prop or derived)
+    const validatedItems = new Set(allItems.filter(eq => eq.inventoryStatus === 'found').map(eq => eq.serialNumber));
+    const agentMismatch = allItems.some(eq => eq.attributionError);
+    // Unexpected items are handled by parent session's unexpectedScans
+
     const isComplete = validatedItems.size === allItems.length;
+    const progress = (validatedItems.size / allItems.length) * 100;
 
     const toggleValidation = (serialNumber) => {
-        const newValidated = new Set(validatedItems);
-        if (newValidated.has(serialNumber)) {
-            newValidated.delete(serialNumber);
-        } else {
-            newValidated.add(serialNumber);
-        }
-        setValidatedItems(newValidated);
+        const item = allItems.find(eq => eq.serialNumber === serialNumber);
+        const newStatus = validatedItems.has(serialNumber) ? 'pending' : 'found';
+        onEquipmentValidate(serialNumber, newStatus, agentMismatch);
     };
 
-    const handleScan = async (code) => {
-        setScanError(null);
-        const allItems = [mainEquipment, ...linkedEquipment];
-        const found = allItems.find(eq => eq.serialNumber === code || eq.equipmentId === code);
-
-        if (found) {
-            const newValidated = new Set(validatedItems);
-            newValidated.add(found.serialNumber);
-            setValidatedItems(newValidated);
-            // Visual feedback or sound could go here
-        } else {
-            // Check if it's already in unexpected
-            if (!unexpectedItems.find(item => item.code === code)) {
-                // Try to get more info from DB
-                const { getEquipmentByIdentifier } = await import('../services/database');
-                const dbInfo = await getEquipmentByIdentifier(code);
-
-                setUnexpectedItems(prev => [...prev, {
-                    code,
-                    equipment: dbInfo || null,
-                    timestamp: new Date().toISOString()
-                }]);
-            }
-            setScanError("Équipement non attendu sur ce poste");
-        }
-    };
-
-    const validateAll = () => {
-        const allSerials = allItems.map(eq => eq.serialNumber);
-        setValidatedItems(new Set(allSerials));
+    const toggleAgentMismatch = (checked) => {
+        allItems.forEach(eq => {
+            onEquipmentValidate(eq.serialNumber, eq.inventoryStatus, checked);
+        });
     };
 
     const confirmWorkstation = () => {
@@ -91,8 +64,25 @@ export default function WorkstationView({
 
             {showScanner && (
                 <div className="workstation-scanner-overlay">
-                    <BarcodeScanner onScan={handleScan} onError={setScanError} />
-                    {scanError && <div className="scan-error-msg">{scanError}</div>}
+                    <BarcodeScanner onScan={onScan} onError={() => { }} />
+
+                    {lastScanResult && (
+                        <div className={`workstation-scan-feedback ${lastScanResult.type}`}>
+                            {lastScanResult.equipment ? (
+                                <div className="feedback-content">
+                                    <span className="icon">{getEquipmentTypeIcon(lastScanResult.equipment.type)}</span>
+                                    <span className="text">{lastScanResult.message}</span>
+                                </div>
+                            ) : (
+                                <div className="feedback-content unknown">
+                                    <span className="icon">❓</span>
+                                    <span className="text">{lastScanResult.code} non trouvé</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {parentScanError && <div className="scan-error-msg">{parentScanError}</div>}
                     <div className="scanner-hint">Scannez les équipements du poste</div>
                 </div>
             )}
@@ -129,7 +119,7 @@ export default function WorkstationView({
                         <input
                             type="checkbox"
                             checked={agentMismatch}
-                            onChange={(e) => setAgentMismatch(e.target.checked)}
+                            onChange={(e) => toggleAgentMismatch(e.target.checked)}
                         />
                         <span>Signaler erreur d'attribution</span>
                     </label>
@@ -157,30 +147,24 @@ export default function WorkstationView({
                     </div>
                 )}
 
-                {/* IMPRÉVUS */}
-                {unexpectedItems.length > 0 && (
+                {/* IMPRÉVUS SUR CE POSTE */}
+                {unexpectedScans.filter(s => s.equipment && s.equipment.linkedPcId !== (mainEquipment.equipmentId || mainEquipment.serialNumber)).length > 0 && (
                     <div className="workstation-category unexpected">
                         <h3 className="category-title">❓ Matériel imprévu sur ce poste</h3>
                         <div className="linked-list">
-                            {unexpectedItems.map((item, idx) => (
+                            {unexpectedScans.filter(s => s.equipment && s.equipment.linkedPcId !== (mainEquipment.equipmentId || mainEquipment.serialNumber)).map((scan, idx) => (
                                 <div
                                     key={idx}
                                     className="linked-item unexpected"
-                                    onClick={() => item.equipment && setSelectedEquipment(item.equipment)}
+                                    onClick={() => scan.equipment && setSelectedEquipment(scan.equipment)}
                                 >
-                                    <div className="item-icon">{item.equipment ? getEquipmentTypeIcon(item.equipment.type) : '❓'}</div>
+                                    <div className="item-icon">{scan.equipment ? getEquipmentTypeIcon(scan.equipment.type) : '❓'}</div>
                                     <div className="item-details">
-                                        <span className="item-type">{item.equipment ? getEquipmentTypeName(item.equipment.type) : 'HORS INVENTAIRE POSTE'}</span>
-                                        <span className="item-model">{item.equipment ? `${item.equipment.brand} ${item.equipment.model}` : item.code}</span>
-                                        {item.equipment && <span className="item-serial">{item.equipment.serialNumber}</span>}
-                                        {item.equipment && <span className="item-agent" style={{ fontSize: '0.8rem', opacity: 0.7 }}>👤 {item.equipment.agent || 'Sans agent'}</span>}
+                                        <span className="item-type">{scan.equipment ? getEquipmentTypeName(scan.equipment.type) : 'HORS INVENTAIRE POSTE'}</span>
+                                        <span className="item-model">{scan.equipment ? `${scan.equipment.brand} ${scan.equipment.model}` : scan.code}</span>
+                                        {scan.equipment && <span className="item-serial">{scan.equipment.serialNumber}</span>}
+                                        {scan.equipment && <span className="item-agent" style={{ fontSize: '0.8rem', opacity: 0.7 }}>👤 {scan.equipment.agent || 'Sans agent'}</span>}
                                     </div>
-                                    <button
-                                        className="remove-unexpected"
-                                        onClick={(e) => { e.stopPropagation(); setUnexpectedItems(prev => prev.filter((_, i) => i !== idx)); }}
-                                    >
-                                        ✕
-                                    </button>
                                 </div>
                             ))}
                         </div>

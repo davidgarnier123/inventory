@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     getAllEquipment,
-    getEquipmentBySerial,
     getEquipmentByIdentifier,
     getEquipmentByLinkedPc,
     saveEquipment,
@@ -79,150 +78,135 @@ export default function InventorySession() {
     const handleScan = useCallback(async (code, result) => {
         setScanError(null);
 
-        // Find equipment by serial number or ID or any other identifier
-        let found = await getEquipmentByIdentifier(code);
+        // Find equipment in DB (Exhaustive search SN, ID, Comment, Info, etc.)
+        const foundInDb = await getEquipmentByIdentifier(code);
 
-        // WORKSTATION AUTO-MAP:
-        // If we scannned something that IS linked to a PC, find the PC to open the full workstation view
-        if (found && found.linkedPcId && found.type !== 'pc') {
-            const parentPc = await getEquipmentByIdentifier(found.linkedPcId);
+        // Define what we found (could be redirected to workstation later)
+        let processedEquipment = foundInDb;
+        let isRedirection = false;
+        let parentPc = null; // To store parent PC if redirection occurs
+
+        // Auto-Workstation logic (if peripheral -> find PC)
+        if (foundInDb && foundInDb.linkedPcId && foundInDb.type !== 'pc') {
+            parentPc = await getEquipmentByIdentifier(foundInDb.linkedPcId);
             if (parentPc) {
-                found = parentPc; // Redirect to PC workstation
+                // We keep track that we found the peripheral, but we'll show the PC workstation
+                processedEquipment = parentPc;
+                isRedirection = true;
             }
         }
 
-        // Check for duplicates by Serial Number (the unique reference)
-        if (found && session.scannedItems?.includes(found.serialNumber)) {
-            setLastScanResult({
-                type: 'already_scanned',
-                code,
-                equipment: found,
-                message: 'Équipement déjà scanné dans cette session'
-            });
-            return;
-        } else if (!found && session.scannedItems?.includes(code)) {
-            setLastScanResult({
-                type: 'already_scanned',
-                code,
-                message: 'Code inconnu déjà scanné'
-            });
-            return;
-        }
+        // Functional update to avoid race conditions
+        setSession(current => {
+            const uniqueId = foundInDb ? foundInDb.serialNumber : code;
 
-        // If workstation view is open, handle scan there
-        if (showWorkstation) {
-            // Check if item is in linked equipment OR is the main equipment
-            const allItems = [showWorkstation, ...linkedEquipment];
-            // found already search in ID, Serial, etc. So use found.serialNumber if exists
-            const workstationMatch = found ? allItems.find(eq => eq.serialNumber === found.serialNumber) : null;
-
-            if (workstationMatch) {
-                handleEquipmentValidate(workstationMatch.serialNumber, 'found', false);
-                // Also update session scannedItems to avoid global duplicates
-                const newSession = {
-                    ...session,
-                    scannedItems: [...new Set([...(session.scannedItems || []), workstationMatch.serialNumber])]
-                };
-                setSession(newSession);
-                await saveSession(newSession);
-                return;
-            } else {
+            // Check for duplicates
+            if (current.scannedItems?.includes(uniqueId)) {
                 setLastScanResult({
-                    type: 'unknown_at_workstation',
+                    type: 'already_scanned',
                     code,
-                    equipment: found || null,
-                    message: found ? `Trouvé en base : ${found.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
+                    equipment: foundInDb,
+                    message: 'Déjà scanné'
                 });
+                return current;
+            }
 
-                if (found) {
-                    // It's a valid equipment, mark as scanned globally anyway
-                    const newSession = {
-                        ...session,
-                        scannedItems: [...new Set([...(session.scannedItems || []), found.serialNumber])]
-                    };
-                    setSession(newSession);
-                    await saveSession(newSession);
+            // If workstation view is open, handle scan there
+            if (showWorkstation) {
+                const allItems = [showWorkstation, ...linkedEquipment];
+                const workstationMatch = foundInDb ? allItems.find(eq => eq.serialNumber === foundInDb.serialNumber) : null;
+
+                if (workstationMatch) {
+                    handleEquipmentValidate(workstationMatch.serialNumber, 'found', false);
+                    setLastScanResult({
+                        type: 'success',
+                        equipment: workstationMatch,
+                        message: 'Équipement validé sur le poste'
+                    });
+                    const newScanned = [...new Set([...(current.scannedItems || []), workstationMatch.serialNumber])];
+                    const updated = { ...current, scannedItems: newScanned };
+                    saveSession(updated);
+                    return updated;
+                } else {
+                    setLastScanResult({
+                        type: 'unknown_at_workstation',
+                        code,
+                        equipment: foundInDb || null,
+                        message: foundInDb ? `Trouvé en base : ${foundInDb.agent || 'Sans agent'}` : "Équipement non attendu sur ce poste"
+                    });
+                    // If it's a valid equipment, mark as scanned globally anyway
+                    if (foundInDb) {
+                        const newScanned = [...new Set([...(current.scannedItems || []), foundInDb.serialNumber])];
+                        const updated = { ...current, scannedItems: newScanned };
+                        saveSession(updated);
+                        return updated;
+                    }
+                    return current;
                 }
-                return;
             }
-        }
 
-        if (!found) {
-            setLastScanResult({
-                type: 'unknown',
-                code,
-                message: 'Identifiant non trouvé (S/N ou ID 7 chiffres)'
-            });
+            // Update session data
+            const newScanned = [...new Set([...(current.scannedItems || []), uniqueId])];
+            let newUnexpected = current.unexpectedScans || [];
 
-            // Track unknown item if not already tracked
-            if (!(session.unexpectedScans || []).some(s => s.code === code)) {
-                const newSession = {
-                    ...session,
-                    scannedItems: [...new Set([...(session.scannedItems || []), code])],
-                    unexpectedScans: [...(session.unexpectedScans || []), { code, type: 'unknown', date: new Date().toISOString() }]
-                };
-                setSession(newSession);
-                await saveSession(newSession);
+            if (!foundInDb) {
+                // Truly unknown
+                setLastScanResult({
+                    type: 'unknown',
+                    code,
+                    message: 'Non trouvé en base (S/N, ID, Commentaire...)'
+                });
+                newUnexpected = [...newUnexpected, { code, type: 'unknown', date: new Date().toISOString() }];
+            } else {
+                // Check scope
+                const inScope = (current.services || []).some(path => foundInDb.service?.startsWith(path));
+
+                if (!inScope) {
+                    newUnexpected = [...newUnexpected, { code, type: 'outOfScope', equipment: foundInDb, date: new Date().toISOString() }];
+                }
+
+                setLastScanResult({
+                    type: inScope ? 'success' : 'outOfScope',
+                    equipment: foundInDb,
+                    message: isRedirection ? `Lié au poste de ${parentPc.agent || 'inconnu'}` : (inScope ? 'Trouvé' : 'Hors périmètre')
+                });
             }
-            return;
-        }
 
-        // Check if in selected services
-        const inScope = (session.services || []).some(path =>
-            found.service?.startsWith(path)
-        );
-
-        // Update equipment status
-        const updatedEquipment = {
-            ...found,
-            inventoryStatus: inScope ? 'found' : 'error',
-            lastScannedAt: new Date().toISOString()
-        };
-
-        await saveEquipment(updatedEquipment);
-
-        // Update session
-        // Check if already in unexpected to avoid duplicates
-        const isAlreadyUnexpected = (session.unexpectedScans || []).some(s => s.code === code || (s.equipment && s.equipment.serialNumber === found.serialNumber));
-
-        const newUnexpected = (!inScope && !isAlreadyUnexpected)
-            ? [...(session.unexpectedScans || []), { code, type: 'outOfScope', equipment: updatedEquipment, date: new Date().toISOString() }]
-            : (session.unexpectedScans || []);
-
-        const newSession = {
-            ...session,
-            id: session.id, // ensure ID is preserved
-            scannedItems: [...new Set([...(session.scannedItems || []), found.serialNumber])],
-            unexpectedScans: newUnexpected
-        };
-        setSession(newSession);
-        await saveSession(newSession);
-
-        setLastScanResult({
-            type: inScope ? 'success' : 'outOfScope',
-            equipment: updatedEquipment,
-            message: inScope ? 'Équipement identifié' : 'Hors périmètre'
+            const updated = { ...current, scannedItems: newScanned, unexpectedScans: newUnexpected };
+            saveSession(updated); // Background save
+            return updated;
         });
 
-        // Refresh list
-        await loadEquipment();
+        // Final UI actions (Workstation view etc)
+        if (processedEquipment) {
+            // Update DB status for the actual scanned item
+            if (foundInDb) {
+                const inScope = (session.services || []).some(path => foundInDb.service?.startsWith(path));
+                await saveEquipment({
+                    ...foundInDb,
+                    inventoryStatus: inScope ? 'found' : 'error',
+                    lastScannedAt: new Date().toISOString()
+                });
+                await loadEquipment();
+            }
 
-        // If PC or Dock, offer workstation sub-inventory
-        if (found.type === 'pc' || found.type === 'dock') {
-            const linked = await getEquipmentByLinkedPc(found.equipmentId || found.serialNumber);
-            if (linked.length > 0) {
-                setLinkedEquipment(linked);
-                setShowWorkstation(updatedEquipment);
+            // If it's a workstation core (PC or Dock after redirection if needed)
+            if (processedEquipment.type === 'pc' || processedEquipment.type === 'dock') {
+                const linked = await getEquipmentByLinkedPc(processedEquipment.equipmentId || processedEquipment.serialNumber);
+                if (linked.length > 0) {
+                    setLinkedEquipment(linked);
+                    setShowWorkstation(processedEquipment);
+                }
             }
         }
-    }, [session, showWorkstation, linkedEquipment]);
+    }, [session.services, session.id, showWorkstation, linkedEquipment]); // Minimize dependencies
 
     const handleScanError = useCallback((error) => {
         setScanError(error);
     }, []);
 
     const handleEquipmentValidate = async (serialNumber, status, hasError) => {
-        const eq = await getEquipmentBySerial(serialNumber);
+        const eq = await getEquipmentByIdentifier(serialNumber);
         if (eq) {
             await saveEquipment({
                 ...eq,
@@ -281,6 +265,10 @@ export default function InventorySession() {
                 linkedEquipment={linkedEquipment}
                 onEquipmentValidate={handleEquipmentValidate}
                 onClose={closeWorkstation}
+                onScan={handleScan}
+                lastScanResult={lastScanResult}
+                scanError={scanError}
+                unexpectedScans={session.unexpectedScans || []}
             />
         );
     }

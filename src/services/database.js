@@ -70,13 +70,23 @@ export async function getEquipmentByIdentifier(code) {
         console.warn("Index equipmentId failed", e);
     }
 
-    // 3. Fail-safe: Full scan of the database on specific fields only
-    // Restricted to: Serial, Equipment ID (7 digits), and Comment
+    // 3. Fail-safe: Full scan of the database on all potential identification fields
+    // We search priority fields first, then everything as fallback
     const all = await db.getAll(STORES.EQUIPMENT);
-    return all.find(eq =>
+
+    // Priority: Serial, ID, Comment
+    let match = all.find(eq =>
         (eq.serialNumber && eq.serialNumber.trim().toUpperCase() === upperCode) ||
         (eq.equipmentId && String(eq.equipmentId).trim().toUpperCase() === upperCode) ||
         (eq.comment && String(eq.comment).trim().toUpperCase() === upperCode)
+    );
+    if (match) return match;
+
+    // Fallback: search in Info, MAC, or even raw type / model if it looks like a code
+    return all.find(eq =>
+        (eq.info && String(eq.info).trim().toUpperCase() === upperCode) ||
+        (eq.macAddress && String(eq.macAddress).trim().toUpperCase() === upperCode) ||
+        (eq.linkedPcId && String(eq.linkedPcId).trim().toUpperCase() === upperCode)
     );
 }
 
